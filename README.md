@@ -71,6 +71,7 @@ For CTF players specifically: HorusEye automates the reconnaissance-to-privilege
 | **Input** | Certipy | Parses ADCS vulnerability output (ESC1-ESC8) |
 | **Input** | ldapdomaindump | Parses LDAP enumeration output |
 | **Input** | CrackMapExec | Parses CME scan results |
+| **Input** | nxc | Parses nxc scan results |
 | **Input** | Manual | Interactive prompt when no files are available |
 | **Detection** | 13 Attack Types | Full list below |
 | **Detection** | Path Scoring | Ranks findings by impact × ease |
@@ -182,6 +183,12 @@ cme smb 10.10.10.0/24 -u user -p pass --shares > cme_output.txt
 python3 horuseye.py --cme cme_output.txt
 ```
 
+**NetExec (recommended over CME)**
+```bash
+nxc smb 10.10.10.0/24 -u user -p pass --shares 2>&1 | tee nxc.txt
+python3 horuseye.py --nxc nxc.txt --domain corp.local --dc 10.10.10.5
+```
+
 **Combined (best results)**
 ```bash
 python3 horuseye.py \
@@ -189,6 +196,7 @@ python3 horuseye.py \
     --certipy certipy.json \
     --ldap ./ldap/ \
     --cme cme.txt \
+	--nxc nxc.txt \
     --domain corp.local \
     --dc 10.10.10.5
 ```
@@ -565,6 +573,7 @@ AD Input Sources:
   --bloodhound DIR      BloodHound JSON folder (SharpHound output)
   --ldap DIR            ldapdomaindump output folder
   --cme FILE            CrackMapExec output file
+  --nxc FILE            NetExec (nxc) output — modern CrackMapExec replacement
   --certipy FILE        Certipy JSON output
   --manual              Interactive manual input mode
 
