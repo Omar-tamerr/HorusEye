@@ -1,0 +1,26 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# HorusEye runtime output — NEVER commit these
+horuseye_output/
+valid_credentials.txt
+valid_credentials.json
+*.pot
+*.hash
+*.dmp
+lsass.dmp
+
+# API keys / config
+.horuseye/
+config.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
