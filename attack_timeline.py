@@ -71,6 +71,13 @@ class AttackTimeline:
 
     # ── Public API ────────────────────────────────────────────────────────
 
+    def render(self, findings: List[Dict], domain_data: Dict,
+               initial_creds: Optional[Dict] = None) -> None:
+        """Convenience wrapper: build events from findings then print them."""
+        domain = domain_data.get("domain", "") if isinstance(domain_data, dict) else str(domain_data)
+        self.build_from_findings(findings, domain, initial_creds)
+        self.print_timeline(domain)
+
     def build_from_findings(self, findings: List[Dict], domain: str,
                              initial_creds: Optional[Dict] = None) -> List[Dict]:
         """Build timeline events from scored findings list."""
