@@ -12,6 +12,7 @@ def parse_all_sources(args, console, animated_task):
     domain_data = {
         "domain":       args.domain,
         "dc":           getattr(args, "dc", None),
+        "dc_ip":        getattr(args, "dc", None),
         "users":        [],
         "groups":       [],
         "computers":    [],
@@ -22,6 +23,8 @@ def parse_all_sources(args, console, animated_task):
         "adcs":         {},
         "cme_data":     {},
         "nxc_data":     {},
+        "spns":         [],   # kerberoastable users
+        "asrep_users":  [],   # AS-REP roastable users
         "raw_sources":  [],
     }
 
@@ -31,8 +34,10 @@ def parse_all_sources(args, console, animated_task):
     if getattr(args, "bloodhound", None):
         animated_task("Parsing BloodHound", ["Users", "Groups", "ACLs", "Sessions", "Graph"], "cyan")
         d = BloodHoundParser(args.bloodhound).parse()
-        for k in ["users", "groups", "computers", "acls", "sessions"]:
+        for k in ["users", "groups", "computers", "acls", "sessions", "gpos", "trusts"]:
             domain_data[k].extend(d.get(k, []))
+        domain_data["spns"].extend(d.get("spns", []))
+        domain_data["asrep_users"].extend(d.get("asrep_users", []))
         domain_data["raw_sources"].append("bloodhound")
         console.print(
             f"  [dim]└─ {len(d.get('users', []))} users, "
@@ -47,6 +52,10 @@ def parse_all_sources(args, console, animated_task):
         domain_data["groups"].extend(d.get("groups", []))
         domain_data["gpos"].extend(d.get("gpos", []))
         domain_data["trusts"].extend(d.get("trusts", []))
+        domain_data["spns"].extend(d.get("spns", []))
+        domain_data["asrep_users"].extend(d.get("asrep_users", []))
+        if d.get("password_policy") and not domain_data.get("password_policy"):
+            domain_data["password_policy"] = d["password_policy"]
         domain_data["raw_sources"].append("ldapdomaindump")
         console.print(
             f"  [dim]└─ {len(d.get('users', []))} users, "
@@ -121,6 +130,8 @@ def parse_all_sources(args, console, animated_task):
     if getattr(args, "manual", False):
         d = ManualInputCollector(console).collect()
         domain_data["users"].extend(d.get("users", []))
+        domain_data["spns"].extend(d.get("spns", []))
+        domain_data["asrep_users"].extend(d.get("asrep_users", []))
         domain_data["raw_sources"].append("manual")
 
     # ── Deduplicate users ──────────────────────────────────────────────────────

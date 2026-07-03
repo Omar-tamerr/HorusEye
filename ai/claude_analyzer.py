@@ -17,7 +17,8 @@ class ClaudeAnalyzer:
             prompt = (
                 f"You are a senior red team operator. Analyze these AD attack paths for {domain_data.get('domain','')}:\n"
                 f"{summary}\n\nFor each finding give a 1-sentence attack narrative. "
-                f"Respond ONLY with valid JSON array: [{{"type":"...","ai_narrative":"..."}}]"
+                f"Respond ONLY with valid JSON array: "
+                f'[{{"type":"...","ai_narrative":"..."}}]'
             )
             req = urllib.request.Request(
                 "https://api.anthropic.com/v1/messages",
