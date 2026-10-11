@@ -3,9 +3,9 @@ HorusEye - All Parsers
 Handles BloodHound, ldapdomaindump, CrackMapExec, NetExec, Certipy, Manual
 Author: Omar Tamer 🇪🇬
 """
-from parsers.bloodhound_parser import BloodHoundParser
-from parsers.ldap_parser import LDAPParser, CMEParser, CertipyParser, ManualInputCollector
-from parsers.nxc_parser import NXCParser
+from horuseye.parsers.bloodhound_parser import BloodHoundParser
+from horuseye.parsers.ldap_parser import LDAPParser, CMEParser, CertipyParser, ManualInputCollector
+from horuseye.parsers.nxc_parser import NXCParser
 
 
 def parse_all_sources(args, console, animated_task):

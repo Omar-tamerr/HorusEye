@@ -800,7 +800,7 @@ def show_help(topic=None, no_banner=False):
     Main entry point. Call with topic string or None for main help.
 
     Usage in horuseye.py:
-        from utils.help_printer import show_help
+        from horuseye.utils.help_printer import show_help
         show_help()                        # main help with banner
         show_help(no_banner=True)          # main help, banner already shown
         show_help("recon")                 # recon phase help with banner

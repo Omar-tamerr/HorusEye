@@ -1,5 +1,5 @@
-"""Pytest bootstrap: put the repo root on sys.path so the flat-layout
-packages (core, parsers, ...) import when tests run from anywhere."""
+"""Pytest bootstrap: put the repo root on sys.path so `import horuseye.*`
+resolves when the tests run from a clone without an editable install."""
 import os
 import sys
 

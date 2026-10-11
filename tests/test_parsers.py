@@ -2,7 +2,7 @@
 is handed, so lock in the fields the parser must surface from SharpHound JSON."""
 import json
 
-from parsers.bloodhound_parser import BloodHoundParser
+from horuseye.parsers.bloodhound_parser import BloodHoundParser
 
 
 def _write(dirpath, name, payload):

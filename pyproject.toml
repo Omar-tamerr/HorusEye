@@ -30,13 +30,10 @@ Repository = "https://github.com/Omar-tamerr/HorusEye"
 Issues = "https://github.com/Omar-tamerr/HorusEye/issues"
 
 [project.scripts]
-horuseye = "horuseye:main"
+horuseye = "horuseye.cli:main"
 
-[tool.setuptools]
-# Flat layout: the CLI is a top-level module and the feature areas are
-# top-level packages. Install into a dedicated venv or via pipx.
-py-modules = ["horuseye", "auto_exploit"]
-packages = ["ai", "core", "engine", "features", "parsers", "reports", "utils"]
+[tool.setuptools.packages.find]
+include = ["horuseye*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

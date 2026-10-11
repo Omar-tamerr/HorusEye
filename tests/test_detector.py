@@ -8,8 +8,8 @@ CRITICAL is actually reachable.
 """
 import pytest
 
-from core.attack_detector import AttackDetector
-from core.path_scorer import PathScorer
+from horuseye.core.attack_detector import AttackDetector
+from horuseye.core.path_scorer import PathScorer
 
 
 @pytest.fixture

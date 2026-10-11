@@ -62,6 +62,7 @@ See the [Roadmap](#roadmap) for what's next.
 - [What's New in v2.1](#whats-new-in-v21)
 - [Features](#features)
 - [Installation](#installation)
+- [Project Structure](#project-structure)
 - [Quick Start](#quick-start)
 - [Input Sources](#input-sources)
 - [Attack Detection](#attack-detection)
@@ -158,6 +159,30 @@ horuseye --check-deps
 ```bash
 horuseye --config --claude-key YOUR_ANTHROPIC_KEY   # stored in ~/.horuseye/config.json
 ```
+
+---
+
+## Project Structure
+
+HorusEye is a single installable package. The feature areas map directly to the
+attack lifecycle, so the code reads the way an engagement runs:
+
+```
+horuseye/
+├── cli.py            # argument parsing + orchestration (entry point)
+├── parsers/          # ingest BloodHound, ldapdomaindump, CME, NetExec, Certipy
+├── core/             # attack_detector (13 detections) + path_scorer
+├── engine/           # hash cracking, lateral movement, timeline, checklist, ...
+├── features/         # creds manager, password spray, wordlist gen, team collab
+├── reports/          # CLI / HTML / JSON report generation
+├── ai/               # optional Claude narrative layer
+└── utils/            # config, dependency preflight, help
+tests/                # pytest suite (parsers, scorer, detection engine)
+docs/                 # screenshots and reference material
+```
+
+Run it with the installed `horuseye` command, with `python -m horuseye`, or
+straight from a clone with `python horuseye.py`.
 
 ---
 
