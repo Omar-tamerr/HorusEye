@@ -65,7 +65,7 @@ class ReportGenerator:
   code{{background:#1a1a1a;padding:2px 6px;border-radius:3px;color:#00ff88;font-size:12px}}
   .banner{{color:#E4002B;font-size:12px;white-space:pre}}
 </style></head><body>
-<pre class="banner">𓂀 HorusEye v2.0 — AD Attack Report</pre>
+<pre class="banner">𓂀 HorusEye v2.1 — AD Attack Report</pre>
 <h1>Domain: {self.domain_data.get("domain","N/A")}</h1>
 <p>DC: {self.domain_data.get("dc_ip","N/A")} | Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} | 
 Findings: {len(self.findings)} | Made by Omar Tamer 🇪🇬</p>
@@ -75,19 +75,19 @@ Findings: {len(self.findings)} | Made by Omar Tamer 🇪🇬</p>
 </table>
 </body></html>"""
 
-        Path(filepath).write_text(html)
+        Path(filepath).write_text(html, encoding="utf-8")
         self._p(f"[green]📄 HTML report → {filepath}[/green]")
 
     def export_json(self, filepath: str):
         data = {
             "generated":   datetime.now().isoformat(),
-            "tool":        "HorusEye v2.0",
+            "tool":        "HorusEye v2.1",
             "author":      "Omar Tamer 🇪🇬",
             "domain":      self.domain_data.get("domain",""),
             "dc_ip":       self.domain_data.get("dc_ip",""),
             "findings":    self.findings,
         }
-        Path(filepath).write_text(json.dumps(data, indent=2))
+        Path(filepath).write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
         self._p(f"[green]📄 JSON report → {filepath}[/green]")
 
     def _filter(self, severity_filter: str) -> list:

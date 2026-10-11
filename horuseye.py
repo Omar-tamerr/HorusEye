@@ -1,10 +1,23 @@
 #!/usr/bin/env python3
 """
-HorusEye v2.0 — AI-Powered Active Directory Attack Platform
+HorusEye v2.1 — AI-Powered Active Directory Attack Platform
 Author: Omar Tamer 🇪🇬
 """
 
 import argparse, sys, os, json
+
+# ── UTF-8 bootstrap ─────────────────────────────────────────────────────────
+# The banner and findings use box-drawing glyphs, hieroglyphs (𓂀) and emoji.
+# On a legacy Windows console the default code page is cp1252, which raises
+# UnicodeEncodeError the moment Rich tries to render them. Force UTF-8 on the
+# streams before anything prints so the tool runs out-of-the-box on Windows.
+if sys.platform == "win32":
+    for _stream in ("stdout", "stderr"):
+        try:
+            getattr(sys, _stream).reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
+
 from datetime import datetime
 from rich.console import Console
 from rich.panel import Panel
