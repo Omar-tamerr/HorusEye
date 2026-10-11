@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "horuseye"
+version = "2.1.0"
+description = "AI-assisted Active Directory attack-path analysis platform"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "Omar Tamer" }]
+keywords = ["active-directory", "bloodhound", "pentest", "red-team", "security", "ctf"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Security",
+]
+dependencies = ["rich>=13.0.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.urls]
+Homepage = "https://github.com/Omar-tamerr/HorusEye"
+Repository = "https://github.com/Omar-tamerr/HorusEye"
+Issues = "https://github.com/Omar-tamerr/HorusEye/issues"
+
+[project.scripts]
+horuseye = "horuseye:main"
+
+[tool.setuptools]
+# Flat layout: the CLI is a top-level module and the feature areas are
+# top-level packages. Install into a dedicated venv or via pipx.
+py-modules = ["horuseye", "auto_exploit"]
+packages = ["ai", "core", "engine", "features", "parsers", "reports", "utils"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

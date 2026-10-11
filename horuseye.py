@@ -201,8 +201,14 @@ def main():
     g8.add_argument("--json",        metavar="FILE")
     g8.add_argument("--severity",    choices=["critical","high","all"], default="all")
     g8.add_argument("--config",      action="store_true")
+    g8.add_argument("--check-deps",  action="store_true", help="Check external toolchain (hashcat, nxc, impacket, certipy, ...) on PATH")
 
     args = parser.parse_args()
+
+    if args.check_deps:
+        from utils.deps import check_dependencies
+        check_dependencies(console)
+        return
 
     if args.config:
         from utils.config import save_config
