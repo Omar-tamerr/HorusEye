@@ -33,7 +33,7 @@
 
 Active Directory is the backbone of nearly every enterprise Windows environment, and the most common path to full domain compromise in penetration tests and CTF challenges like HackTheBox Pro Labs (RastaLabs, Offshore, Cybernetics, Dante), OSCP, LPT Master, and CPENT. The problem is that the toolchain is fragmented: BloodHound shows you attack paths and gives you generic commands, but when you're staring at a real engagement with 400 users, 12 service accounts, and nested group memberships, those generic commands leave you piecing things together manually. Impacket gives you execution but no analysis. Certipy gives you ADCS findings but no context on which template is actually worth pursuing first. HorusEye connects all of these. It ingests output from BloodHound, Certipy, ldapdomaindump, and CrackMapExec, scores every attack path by exploitability against your specific environment, and gives you exact commands tailored to the accounts and configurations it actually found, not a textbook example.
 
-HorusEye connects all of these. It ingests output from BloodHound, Certipy, ldapdomaindump, and CrackMapExec, detects 13 attack path types, scores them by exploitability, and then tells you exactly what to run and in what order. The built-in Claude AI layer adds a narrative explanation to each finding so you understand not just *what* is vulnerable but *why* it matters and *how* to chain it.
+HorusEye connects all of these. It ingests output from BloodHound, Certipy, ldapdomaindump, and CrackMapExec, detects Kerberoastable and AS-REP roastable accounts today (11 more attack path types land in v2.1 — see [Attack Detection](#attack-detection)), scores them by exploitability, and then tells you exactly what to run and in what order. The built-in Claude AI layer adds a narrative explanation to each finding so you understand not just *what* is vulnerable but *why* it matters and *how* to chain it.
 
 For CTF players specifically: HorusEye automates the reconnaissance-to-privilege-escalation pipeline that normally takes hours of manual work. You run SharpHound, feed the output to HorusEye, and within seconds you have a ranked list of attack paths from your current user to Domain Admin, with ready-to-paste commands for each step.
 
@@ -73,19 +73,19 @@ For CTF players specifically: HorusEye automates the reconnaissance-to-privilege
 | **Input** | CrackMapExec | Parses CME scan results |
 | **Input** | nxc | Parses nxc scan results |
 | **Input** | Manual | Interactive prompt when no files are available |
-| **Detection** | 13 Attack Types | Full list below |
+| **Detection** | Attack Types | 2 of 13 implemented — see [coverage note](#attack-detection) |
 | **Detection** | Path Scoring | Ranks findings by impact × ease |
 | **Detection** | AI Narratives | Claude explains each finding in plain English |
 | **Offense** | Hash Cracking | 3-round hashcat engine with AD-specific patterns |
 | **Offense** | Wordlist Gen | 18+ username format variants from AD users |
 | **Offense** | Password Spray | Multi-threaded, lockout-safe SMB/LDAP spraying |
 | **Offense** | Lateral Movement | Auto-maps reachable hosts after creds obtained |
-| **Offense** | LSASS Dump | AV-aware method selection (nanodump/comsvcs/procdump) |
-| **Offense** | Auto-Chain | Kerberoast → crack → validate → pivot automatically |
-| **Offense** | Auto-Exploit | Full automated path to DA execution |
+| **Offense** | LSASS Dump | ⚠️ Prints commands only — AV-aware selection not yet wired |
+| **Offense** | Auto-Chain | ⚠️ Stub — real chain implementation not yet wired |
+| **Offense** | Auto-Exploit | ⚠️ Stub — real chain implementation not yet wired |
 | **Offense** | Auto-Persist | Golden Ticket, Skeleton Key, DCSync backdoor |
 | **Reporting** | Attack Timeline | Visual T+0 to DA timeline with exact commands |
-| **Reporting** | DA Checklist | 25-item step-by-step domain takeover checklist |
+| **Reporting** | DA Checklist | ⚠️ 14 items, static — progress tracking not yet wired |
 | **Reporting** | HTML Report | Dark-themed report with all findings and commands |
 | **Reporting** | JSON Export | Machine-readable output for pipeline integration |
 | **Creds** | Credentials Manager | Central store, dedup, saves to `valid_credentials.txt` |
@@ -207,23 +207,33 @@ python3 horuseye.py \
 
 ![Findings](docs/imgs/02_findings.png)
 
-HorusEye detects 13 attack path types. Each finding includes severity, affected accounts, ready-to-paste exploitation commands, and an AI-generated attack narrative.
+HorusEye targets 13 attack path types, **2 of which are implemented today** (see the coverage warning below). Each implemented finding includes severity, affected accounts, ready-to-paste exploitation commands, and an AI-generated attack narrative.
 
-| # | Attack Type | Severity | What it detects |
-|---|---|---|---|
-| 1 | **Kerberoasting** | HIGH/CRITICAL | Service accounts with SPNs, DA members prioritized |
-| 2 | **AS-REP Roasting** | HIGH | Accounts with DONT_REQUIRE_PREAUTH set |
-| 3 | **DCSync** | CRITICAL | Accounts with Replicating Directory Changes rights |
-| 4 | **ACL Abuse** | CRITICAL | GenericAll, WriteDacl, WriteOwner, ForceChangePassword, AddMember |
-| 5 | **GPO Abuse** | HIGH | Write access on Group Policy Objects |
-| 6 | **Unconstrained Delegation** | CRITICAL | Computers/users with unconstrained Kerberos delegation |
-| 7 | **Constrained Delegation** | HIGH | MSDS-AllowedToDelegateTo misconfigurations |
-| 8 | **Pass-the-Hash** | HIGH | Reusable NTLM hashes from privileged sessions |
-| 9 | **ADCS ESC1-ESC8** | CRITICAL | All Certipy ADCS vulnerability classes |
-| 10 | **Domain Trusts** | MEDIUM/HIGH | Cross-domain trust relationships |
-| 11 | **Privileged Sessions** | HIGH | DA/EA sessions on accessible workstations |
-| 12 | **Weak Password Policy** | MEDIUM | Lockout threshold, minimum length, complexity |
-| 13 | **Stale Admin Accounts** | LOW/MEDIUM | Inactive accounts with elevated privileges |
+| # | Attack Type | Severity | Status | What it detects |
+|---|---|---|---|---|
+| 1 | **Kerberoasting** | HIGH/CRITICAL | ✅ Implemented | Service accounts with SPNs, DA members prioritized |
+| 2 | **AS-REP Roasting** | HIGH | ✅ Implemented | Accounts with DONT_REQUIRE_PREAUTH set |
+| 3 | **DCSync** | CRITICAL | 🚧 Planned | Accounts with Replicating Directory Changes rights |
+| 4 | **ACL Abuse** | CRITICAL | 🚧 Planned | GenericAll, WriteDacl, WriteOwner, ForceChangePassword, AddMember |
+| 5 | **GPO Abuse** | HIGH | 🚧 Planned | Write access on Group Policy Objects |
+| 6 | **Unconstrained Delegation** | CRITICAL | 🚧 Planned | Computers/users with unconstrained Kerberos delegation |
+| 7 | **Constrained Delegation** | HIGH | 🚧 Planned | MSDS-AllowedToDelegateTo misconfigurations |
+| 8 | **Pass-the-Hash** | HIGH | 🚧 Planned | Reusable NTLM hashes from privileged sessions |
+| 9 | **ADCS ESC1-ESC8** | CRITICAL | 🚧 Planned | All Certipy ADCS vulnerability classes |
+| 10 | **Domain Trusts** | MEDIUM/HIGH | 🚧 Planned | Cross-domain trust relationships |
+| 11 | **Privileged Sessions** | HIGH | 🚧 Planned | DA/EA sessions on accessible workstations |
+| 12 | **Weak Password Policy** | MEDIUM | 🚧 Planned | Lockout threshold, minimum length, complexity |
+| 13 | **Stale Admin Accounts** | LOW/MEDIUM | 🚧 Planned | Inactive accounts with elevated privileges |
+
+> ### ⚠️ Detection coverage — read before using on an engagement
+>
+> **Only types 1 and 2 are implemented today.** The parsers *do* extract the data for the
+> remaining 11 (ACL edges, ADCS vulnerabilities, trusts, delegation flags, GPOs, sessions,
+> password policy), but the detection engine does not yet consume it.
+>
+> **This means HorusEye can currently report `0 CRITICAL` on a domain that is fully
+> compromisable.** Absence of a finding is *not* evidence of absence of the vulnerability.
+> Do not treat a clean HorusEye run as a clean domain. Types 3-13 are landing in v2.1.
 
 Findings are scored 0-100 and sorted by exploitability. CRITICAL findings include a direct chain to Domain Admin.
 
