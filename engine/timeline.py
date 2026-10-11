@@ -189,7 +189,7 @@ class AttackTimeline:
         """Export timeline to plain text file."""
         total = max(e["t_min"] for e in self.events) if self.events else 0
         lines = [
-            "𓂀 HorusEye v2.0 — Attack Timeline",
+            "𓂀 HorusEye v2.1 — Attack Timeline",
             f"Target    : {domain}",
             f"Generated : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             f"Made by Omar Tamer 🇪🇬",
@@ -283,7 +283,7 @@ class AttackTimeline:
         self.console.print()
         self.console.print(Panel(
             f"[bold red]⏱️  TOTAL TIME TO DOMAIN COMPROMISE: {total_time} MINUTES[/bold red]\n\n"
-            f"[dim]𓂀 HorusEye v2.0 — Omar Tamer 🇪🇬[/dim]",
+            f"[dim]𓂀 HorusEye v2.1 — Omar Tamer 🇪🇬[/dim]",
             border_style="red", padding=(1, 4)
         ))
         self.console.print()

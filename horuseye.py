@@ -35,7 +35,7 @@ BANNER = r"""
  ██╔══██║██║   ██║██╔══██╗██║   ██║╚════██║
  ██║  ██║╚██████╔╝██║  ██║╚██████╔╝███████║
  ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝[/bold red][bold white]
- ███████╗██╗   ██╗███████╗  [bold red]v2.0[/bold red]
+ ███████╗██╗   ██╗███████╗  [bold red]v2.1[/bold red]
  ██╔════╝╚██╗ ██╔╝██╔════╝
  █████╗   ╚████╔╝ █████╗
  ██╔══╝    ╚██╔╝  ██╔══╝
@@ -45,7 +45,7 @@ BANNER = r"""
 EYE = r"""[bold yellow]
        .^.
       /|||\ 
-     / ||| \     [bold white]𓂀  HorusEye v2.0  𓂀[/bold white]
+     / ||| \     [bold white]𓂀  HorusEye v2.1  𓂀[/bold white]
     /  𓂀  \    [bold red]🇪🇬 Omar Tamer — Egypt[/bold red]
    /________\[/bold yellow]"""
 
@@ -88,11 +88,11 @@ def main():
     print_banner()
 
     parser = argparse.ArgumentParser(
-        description="HorusEye v2.0 𓂀 — AI-Powered AD Attack Platform by Omar Tamer 🇪🇬",
+        description="HorusEye v2.1 𓂀 — AI-Powered AD Attack Platform by Omar Tamer 🇪🇬",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  𓂀  HorusEye v2.0 — Usage Examples
+  𓂀  HorusEye v2.1 — Usage Examples
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   [Full Interactive Mode]
@@ -190,7 +190,7 @@ def main():
     g7 = parser.add_argument_group("🤝 Team Collaboration")
     g7.add_argument("--team-server",  action="store_true", help="Start team collaboration server")
     g7.add_argument("--team-connect", metavar="HOST:PORT",  help="Connect to team server")
-    g7.add_argument("--team-port",    type=int, default=9999)
+    g7.add_argument("--team-port",    type=int, default=31337)
 
     # ── AI + Output ───────────────────────────────────────────────────────
     g8 = parser.add_argument_group("🤖 AI + Output")
@@ -234,7 +234,7 @@ def _has_input(args) -> bool:
     return any([args.bloodhound, args.ldap, args.cme, args.nxc, args.certipy, args.manual])
 
 
-def _parse_hostport(s: str, default_port: int = 9999):
+def _parse_hostport(s: str, default_port: int = 31337):
     """Split a HOST:PORT string into (host, int(port))."""
     host, _, port = (s or "").partition(":")
     try:

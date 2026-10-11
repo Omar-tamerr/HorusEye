@@ -514,4 +514,4 @@ class TeamBroadcaster:
     @staticmethod
     def _parse(s: str):
         parts = s.split(":")
-        return parts[0], int(parts[1]) if len(parts) > 1 else 9999
+        return parts[0], int(parts[1]) if len(parts) > 1 else COLLAB_PORT
