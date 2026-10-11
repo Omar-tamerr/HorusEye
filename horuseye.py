@@ -223,6 +223,20 @@ def main():
             import traceback; traceback.print_exc()
 
 
+def _has_input(args) -> bool:
+    """True when at least one AD data source was supplied."""
+    return any([args.bloodhound, args.ldap, args.cme, args.nxc, args.certipy, args.manual])
+
+
+def _parse_hostport(s: str, default_port: int = 9999):
+    """Split a HOST:PORT string into (host, int(port))."""
+    host, _, port = (s or "").partition(":")
+    try:
+        return host, int(port) if port else default_port
+    except ValueError:
+        return host, default_port
+
+
 def _route(args, config, claude_key):
     # ── Standalone modes ──────────────────────────────────────────────────
 
@@ -231,10 +245,21 @@ def _route(args, config, claude_key):
         TeamServer(console).start(args.team_port)
         return
 
-    if args.team_connect:
+    if args.team_connect and not _has_input(args):
+        # Pure watch/join mode: no local data to analyse, so attach to the
+        # session and stay connected until interrupted. (With an input source,
+        # we fall through to run_main_analysis, where TeamBroadcaster opens the
+        # connection and streams findings/creds as they are produced.)
         from features.team_collab import TeamClient
-        TeamClient(console).connect(args.team_connect)
-        # continue with normal analysis + broadcast results
+        host, port = _parse_hostport(args.team_connect)
+        client = TeamClient(console)
+        if client.connect(host, port):
+            console.print("[dim]Watching session — press Ctrl+C to leave.[/dim]")
+            try:
+                while True:
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                client.disconnect()
         return
 
     if args.crack:
@@ -286,8 +311,7 @@ def _route(args, config, claude_key):
         return
 
     # ── Main AD analysis mode ─────────────────────────────────────────────
-    has_input = any([args.bloodhound, args.ldap, args.cme, args.nxc, args.certipy, args.manual])
-    if not has_input:
+    if not _has_input(args):
         from utils.help_printer import show_help
         show_help(no_banner=True)
         return
