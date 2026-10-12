@@ -153,6 +153,9 @@ def main():
     g3.add_argument("--auto-chain",   action="store_true", help="Kerberoast→crack→validate→pivot chain")
     g3.add_argument("--timeline",     action="store_true", help="Show attack timeline T+0 to DA")
     g3.add_argument("--da-checklist", action="store_true", help="Domain takeover step-by-step checklist")
+    g3.add_argument("--graph",        action="store_true", help="Compute shortest attack path(s) to Domain Admin")
+    g3.add_argument("--owned",        metavar="PRINCIPALS", help="Comma-separated owned principals to path from (default: any domain user)")
+    g3.add_argument("--max-paths",    type=int, default=5, help="Max attack paths to show with --graph (default: 5)")
 
     # ── Exploitation ──────────────────────────────────────────────────────
     g4 = parser.add_argument_group("💀 Exploitation")
@@ -328,6 +331,52 @@ def _route(args, config, claude_key):
     run_main_analysis(args, config, claude_key)
 
 
+_EDGE_STYLE = {
+    "MemberOf": "dim", "ACL": "bold yellow", "ForceChangePassword": "yellow",
+    "AddMember": "yellow", "AdminTo": "cyan", "HasSession": "magenta",
+    "DCSync": "bold red", "Unconstrained": "bold red", "ConstrainedDeleg": "red",
+}
+
+
+def render_attack_paths(domain_data, args):
+    """Build the attack graph, print the shortest path(s) to DA, and return the
+    described paths for inclusion in reports."""
+    from horuseye.core.graph import AttackGraph
+
+    console.print(Rule("[bold red][ 𓂀 ATTACK PATHS TO DOMAIN ADMIN ][/bold red]"))
+    console.print()
+    owned = [o.strip() for o in (args.owned or "").split(",") if o.strip()]
+    graph = AttackGraph(domain_data)
+    paths = graph.shortest_paths(owned=owned or None, max_paths=max(1, args.max_paths))
+
+    if not paths:
+        origin = ", ".join(owned) if owned else "any domain user"
+        console.print(f"  [yellow]No attack path to Domain Admin found from {origin}.[/yellow]")
+        console.print("  [dim]Provide a foothold with --owned USER@DOMAIN, or ingest local-admin/"
+                      "session data (SharpHound -c All) for richer paths.[/dim]\n")
+        return []
+
+    described = []
+    for i, path in enumerate(paths, 1):
+        desc = graph.describe(path)
+        described.append(desc)
+        console.print(f"  [bold white]Path {i}[/bold white]  "
+                      f"[dim]({desc['hops']} hop{'s' if desc['hops'] != 1 else ''}: "
+                      f"{desc['start']} → {desc['goal']})[/dim]")
+        console.print(f"    [green]{desc['start']}[/green]")
+        for step, cmd in zip(desc["steps"], desc["commands"]):
+            style = _EDGE_STYLE.get(step["type"], "white")
+            console.print(f"      [dim]│[/dim] [{style}]{step['type']}[/{style}] "
+                          f"[dim]({step['detail']})[/dim]")
+            first_cmd = cmd.split(chr(10))[0]
+            console.print(f"      [dim]▼[/dim] [bold white]{step['to']}[/bold white]  "
+                          f"[dim]{first_cmd}[/dim]")
+        console.print()
+    console.print(f"  [bold red]𓂀 {len(described)} path(s) to Domain Admin. "
+                  f"Shortest: {described[0]['hops']} hop(s).[/bold red]\n")
+    return described
+
+
 def run_main_analysis(args, config, claude_key):
     from horuseye.parsers.all_parsers import parse_all_sources
     from horuseye.core.attack_detector import AttackDetector
@@ -396,6 +445,12 @@ def run_main_analysis(args, config, claude_key):
     # ── Timeline ─────────────────────────────────────────────────────────
     if args.timeline:
         AttackTimeline(console).render(scored, domain_data)
+
+    # ── Attack-path graph ─────────────────────────────────────────────────
+    graph_paths = []
+    if args.graph:
+        graph_paths = render_attack_paths(domain_data, args)
+        reporter.attack_paths = graph_paths
 
     # ── DA Checklist ─────────────────────────────────────────────────────
     if args.da_checklist:

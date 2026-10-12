@@ -1,0 +1,92 @@
+"""Attack-path graph: shortest route from a foothold to Domain Admin."""
+from horuseye.core.graph import AttackGraph
+
+
+def _data(**kw):
+    base = {"domain": "CORP.LOCAL", "dc_ip": "10.0.0.5", "users": [], "groups": [],
+            "computers": [], "acls": [], "sessions": [], "local_admins": [],
+            "delegation_targets": []}
+    base.update(kw)
+    return base
+
+
+def test_membership_chain_to_domain_admins():
+    # BOB -member-> HELPDESK -GenericAll-> DOMAIN ADMINS
+    data = _data(
+        groups=[{"name": "HELPDESK@CORP.LOCAL", "members": ["BOB@CORP.LOCAL"]},
+                {"name": "DOMAIN ADMINS@CORP.LOCAL", "admincount": True, "members": []}],
+        acls=[{"principal": "HELPDESK@CORP.LOCAL", "target": "DOMAIN ADMINS@CORP.LOCAL",
+               "right": "GenericAll"}],
+    )
+    paths = AttackGraph(data).shortest_paths(owned=["BOB@CORP.LOCAL"])
+    assert paths, "expected a path to Domain Admins"
+    types = [e.type for e in paths[0]]
+    assert types == ["MemberOf", "ACL"]
+
+
+def test_session_then_dcsync():
+    # Own WS01 (local admin) -> ADMIN has session there -> ADMIN can DCSync
+    data = _data(
+        local_admins=[{"principal": "BOB@CORP.LOCAL", "computer": "WS01.CORP.LOCAL"}],
+        sessions=[{"UserName": "SVC-ADM@CORP.LOCAL", "ComputerName": "WS01.CORP.LOCAL"}],
+        acls=[{"principal": "SVC-ADM@CORP.LOCAL", "target": "CORP.LOCAL", "right": "GetChangesAll"},
+              {"principal": "SVC-ADM@CORP.LOCAL", "target": "CORP.LOCAL", "right": "GetChanges"}],
+    )
+    path = AttackGraph(data).shortest_paths(owned=["BOB@CORP.LOCAL"])[0]
+    assert [e.type for e in path] == ["AdminTo", "HasSession", "DCSync"]
+    assert path[-1].dst == "CORP.LOCAL"
+
+
+def test_describe_emits_steps_and_commands():
+    data = _data(
+        groups=[{"name": "DOMAIN ADMINS@CORP.LOCAL", "admincount": True}],
+        acls=[{"principal": "BOB@CORP.LOCAL", "target": "DOMAIN ADMINS@CORP.LOCAL",
+               "right": "GenericAll"}],
+    )
+    g = AttackGraph(data)
+    desc = g.describe(g.shortest_paths(owned=["BOB@CORP.LOCAL"])[0])
+    assert desc["hops"] == 1
+    assert desc["goal"].startswith("DOMAIN ADMINS")
+    assert len(desc["steps"]) == len(desc["commands"]) == 1
+
+
+def test_default_start_is_broad_group():
+    # No owned principals: any domain user reaches DA via Domain Users ACL.
+    data = _data(
+        groups=[{"name": "DOMAIN ADMINS@CORP.LOCAL", "admincount": True}],
+        acls=[{"principal": "DOMAIN USERS@CORP.LOCAL", "target": "DOMAIN ADMINS@CORP.LOCAL",
+               "right": "GenericAll"}],
+    )
+    paths = AttackGraph(data).shortest_paths()
+    assert paths and paths[0][0].type == "ACL"
+
+
+def test_no_path_returns_empty():
+    data = _data(
+        groups=[{"name": "DOMAIN ADMINS@CORP.LOCAL", "admincount": True}],
+        acls=[{"principal": "BOB@CORP.LOCAL", "target": "ALICE@CORP.LOCAL", "right": "GenericAll"}],
+    )
+    assert AttackGraph(data).shortest_paths(owned=["BOB@CORP.LOCAL"]) == []
+
+
+def test_unconstrained_delegation_reaches_domain():
+    data = _data(
+        local_admins=[{"principal": "BOB@CORP.LOCAL", "computer": "WEB01.CORP.LOCAL"}],
+        computers=[{"name": "WEB01.CORP.LOCAL", "unconstrained_delegation": True}],
+    )
+    path = AttackGraph(data).shortest_paths(owned=["BOB@CORP.LOCAL"])[0]
+    assert [e.type for e in path] == ["AdminTo", "Unconstrained"]
+
+
+def test_alternate_paths_are_node_diverse():
+    # Two independent routes BOB -> DA; expect more than one distinct path.
+    data = _data(
+        groups=[{"name": "DOMAIN ADMINS@CORP.LOCAL", "admincount": True}],
+        acls=[{"principal": "BOB@CORP.LOCAL", "target": "G1@CORP.LOCAL", "right": "GenericAll"},
+              {"principal": "G1@CORP.LOCAL", "target": "DOMAIN ADMINS@CORP.LOCAL", "right": "GenericAll"},
+              {"principal": "BOB@CORP.LOCAL", "target": "G2@CORP.LOCAL", "right": "GenericAll"},
+              {"principal": "G2@CORP.LOCAL", "target": "DOMAIN ADMINS@CORP.LOCAL", "right": "GenericAll"}],
+    )
+    paths = AttackGraph(data).shortest_paths(owned=["BOB@CORP.LOCAL"], max_paths=3)
+    middles = {tuple(e.dst for e in p) for p in paths}
+    assert len(middles) >= 2
