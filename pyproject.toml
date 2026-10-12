@@ -23,6 +23,7 @@ dependencies = ["rich>=13.0.0"]
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
+ai = ["anthropic>=0.40"]
 
 [project.urls]
 Homepage = "https://github.com/Omar-tamerr/HorusEye"

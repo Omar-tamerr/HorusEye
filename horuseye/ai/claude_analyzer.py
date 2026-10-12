@@ -1,47 +1,150 @@
-"""Claude AI analyzer — calls Claude API for narrative analysis."""
-import json, urllib.request
+"""
+Claude AI analyzer — optional narrative layer.
+
+Generates a one-line attack narrative for each finding via the Anthropic API.
+It is entirely optional: every detection, score and report works without it.
+
+Design notes:
+* Uses the official ``anthropic`` SDK (optional dependency: ``pip install
+  horuseye[ai]``) and the current default model, ``claude-opus-5-5``.
+* Narratives are keyed by each finding's stable ``id`` — the previous version
+  keyed by ``type``, so every DCSync/ACL finding shared one narrative.
+* ``--ai-redact`` replaces the domain and affected principal names with
+  placeholders before anything leaves the machine, then restores them in the
+  returned text, so client identifiers are never sent to the API.
+* Failures are surfaced with a clear reason instead of being swallowed.
+"""
+from __future__ import annotations
+
+import json
+import re
+from typing import Dict, List, Tuple
+
+DEFAULT_MODEL = "claude-opus-5-5"
+
 
 class ClaudeAnalyzer:
-    def __init__(self, api_key: str, deep: bool = False):
+    def __init__(self, api_key: str, deep: bool = False,
+                 model: str = DEFAULT_MODEL, redact: bool = False, console=None):
         self.api_key = api_key
-        self.deep    = deep
+        self.deep = deep
+        self.model = model or DEFAULT_MODEL
+        self.redact = redact
+        self.console = console
 
-    def analyze(self, findings: list, domain_data: dict) -> list:
-        if not findings:
+    # ── Public entry point ────────────────────────────────────────────────────
+    def analyze(self, findings: List[Dict], domain_data: Dict) -> List[Dict]:
+        if not findings or not self.api_key:
             return findings
         try:
-            summary = "\n".join(
-                f"- [{f.get('severity','')}] {f.get('type','')} on {f.get('affected','')}"
-                for f in findings[:10]
+            import anthropic
+        except ImportError:
+            self._warn("AI analysis needs the anthropic package — "
+                       "install it with [cyan]pip install horuseye\\[ai][/cyan]. "
+                       "Continuing in rules-only mode.")
+            return findings
+
+        subset = findings[:20 if self.deep else 10]
+        secrets: Dict[str, str] = {}
+        lines = []
+        for f in subset:
+            affected = self._redact_value(f.get("affected", ""), secrets, domain_data)
+            lines.append(f'- id={f.get("id","")} [{f.get("severity","")}] '
+                         f'{f.get("type","")} on {affected}')
+        domain = self._redact_value(domain_data.get("domain", ""), secrets, domain_data)
+        prompt = (
+            f"You are a senior red-team operator analysing Active Directory attack "
+            f"paths for domain {domain}. For each finding below, write one concise "
+            f"sentence explaining how it is abused and why it matters.\n\n"
+            + "\n".join(lines) +
+            '\n\nReply with ONLY a JSON array, no prose, no code fences: '
+            '[{"id":"<id>","narrative":"<one sentence>"}]'
+        )
+
+        try:
+            client = anthropic.Anthropic(api_key=self.api_key)
+            resp = client.messages.create(
+                model=self.model,
+                max_tokens=2000,
+                output_config={"effort": "high" if self.deep else "low"},
+                messages=[{"role": "user", "content": prompt}],
             )
-            prompt = (
-                f"You are a senior red team operator. Analyze these AD attack paths for {domain_data.get('domain','')}:\n"
-                f"{summary}\n\nFor each finding give a 1-sentence attack narrative. "
-                f"Respond ONLY with valid JSON array: "
-                f'[{{"type":"...","ai_narrative":"..."}}]'
-            )
-            req = urllib.request.Request(
-                "https://api.anthropic.com/v1/messages",
-                data=json.dumps({
-                    "model": "claude-sonnet-4-20250514",
-                    "max_tokens": 1000,
-                    "messages": [{"role": "user", "content": prompt}]
-                }).encode(),
-                headers={
-                    "x-api-key": self.api_key,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                method="POST"
-            )
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                data = json.loads(resp.read())
-                text = data["content"][0]["text"]
-                narratives = json.loads(text)
-                narrative_map = {n["type"]: n.get("ai_narrative","") for n in narratives}
-                for f in findings:
-                    if f.get("type") in narrative_map:
-                        f["ai_narrative"] = narrative_map[f["type"]]
-        except Exception as e:
-            pass  # graceful fallback — no AI narratives
+        except anthropic.AuthenticationError:
+            self._warn("Claude API key rejected — check --claude-key / --config. "
+                       "Continuing in rules-only mode.")
+            return findings
+        except anthropic.RateLimitError:
+            self._warn("Claude API rate limited. Continuing in rules-only mode.")
+            return findings
+        except Exception as e:  # network, API error — report, don't crash the run
+            self._warn(f"AI analysis unavailable ({type(e).__name__}). "
+                       "Continuing in rules-only mode.")
+            return findings
+
+        text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
+        narratives = self._parse(text)
+        if not narratives:
+            self._warn("AI response could not be parsed as JSON; no narratives added.")
+            return findings
+
+        reverse = {v: k for k, v in secrets.items()}
+        by_id = {n.get("id"): n.get("narrative", "") for n in narratives if isinstance(n, dict)}
+        for f in findings:
+            narr = by_id.get(f.get("id"))
+            if narr:
+                f["ai_narrative"] = self._restore(narr, reverse)
         return findings
+
+    # ── Redaction ──────────────────────────────────────────────────────────────
+    def _redact_value(self, value: str, secrets: Dict[str, str], domain_data: Dict) -> str:
+        """Replace sensitive identifiers with stable placeholders. No-op unless
+        --ai-redact is set. Mutates ``secrets`` (real → placeholder)."""
+        if not self.redact or not value:
+            return value
+        out = value
+        for token in self._tokens(value, domain_data):
+            ph = secrets.get(token)
+            if ph is None:
+                ph = f"ENTITY{len(secrets) + 1}"
+                secrets[token] = ph
+            out = re.sub(re.escape(token), ph, out, flags=re.IGNORECASE)
+        return out
+
+    @staticmethod
+    def _tokens(value: str, domain_data: Dict) -> List[str]:
+        """Sensitive substrings to mask: the domain, and each identifier segment
+        (longest first so 'CORP.LOCAL' is masked before 'CORP')."""
+        toks = set()
+        dom = (domain_data.get("domain") or "").strip()
+        if dom:
+            toks.add(dom)
+            toks.add(dom.split(".")[0])
+        for part in re.split(r"[\\@/→,\s]+", value):
+            part = part.strip()
+            if len(part) > 2 and not part.isdigit():
+                toks.add(part)
+        return sorted(toks, key=len, reverse=True)
+
+    @staticmethod
+    def _restore(text: str, reverse: Dict[str, str]) -> str:
+        for placeholder, real in reverse.items():
+            text = text.replace(placeholder, real)
+        return text
+
+    # ── Helpers ────────────────────────────────────────────────────────────────
+    @staticmethod
+    def _parse(text: str):
+        text = text.strip()
+        if text.startswith("```"):
+            text = re.sub(r"^```[a-zA-Z]*\n?|\n?```$", "", text).strip()
+        try:
+            data = json.loads(text)
+            return data if isinstance(data, list) else []
+        except (ValueError, TypeError):
+            return []
+
+    def _warn(self, msg: str):
+        if self.console:
+            self.console.print(f"[yellow]⚠️  {msg}[/yellow]")
+        else:
+            print(re.sub(r"\[/?[^\]]*\]", "", msg))

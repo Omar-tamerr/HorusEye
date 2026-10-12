@@ -199,7 +199,9 @@ def main():
     g8 = parser.add_argument_group("🤖 AI + Output")
     g8.add_argument("--claude-key",  metavar="KEY")
     g8.add_argument("--no-ai",       action="store_true")
-    g8.add_argument("--deep",        action="store_true")
+    g8.add_argument("--deep",        action="store_true", help="Deeper AI analysis (higher reasoning effort)")
+    g8.add_argument("--ai-model",    metavar="MODEL", default="claude-opus-5-5", help="Claude model for narratives (default: claude-opus-5-5)")
+    g8.add_argument("--ai-redact",   action="store_true", help="Mask domain/principal names before sending to the API")
     g8.add_argument("--report",      metavar="FILE")
     g8.add_argument("--json",        metavar="FILE")
     g8.add_argument("--markdown",    metavar="FILE", help="Export Markdown report with Mermaid attack-path diagrams")
@@ -435,7 +437,8 @@ def run_main_analysis(args, config, claude_key):
             "Building context", "Sending to Claude", "Parsing narratives", "Attack chain"
         ], "magenta")
         from horuseye.ai.claude_analyzer import ClaudeAnalyzer
-        scored = ClaudeAnalyzer(claude_key, args.deep).analyze(scored, domain_data)
+        scored = ClaudeAnalyzer(claude_key, args.deep, args.ai_model,
+                                args.ai_redact, console).analyze(scored, domain_data)
         console.print("  [bold green]✓ AI analysis complete[/bold green]\n")
     elif not claude_key:
         console.print("[yellow]⚠️  No Claude key — rules-only mode. Use --config to set key.[/yellow]\n")
