@@ -3,8 +3,9 @@ HorusEye — Attack-path graph engine.
 
 BloodHound shows you the graph; this tells you the order to walk it. We build a
 directed *control* graph where an edge ``A -> B`` means "control of A yields
-control of B", then BFS from a foothold to the nearest Tier-0 node and return
-the ordered steps — each with the command that advances it.
+control of B", then BFS from a foothold to the nearest target and return the
+ordered steps — each with the command that advances it, the evidence behind it,
+and whether the relationship is observed or inferred.
 
 Edge sources (all from data the parsers already produce):
   MemberOf            member  -> group            (inherit the group's rights)
@@ -14,11 +15,17 @@ Edge sources (all from data the parsers already produce):
   AdminTo             principal -> computer        (local administrator)
   HasSession          computer -> user            (creds cached in memory)
   DCSync              principal -> <domain>        (replicate secrets)
-  Unconstrained deleg computer -> <domain>         (coerce a DC, capture its TGT)
-  ConstrainedDeleg    principal -> target          (S4U impersonation)
+  Unconstrained deleg computer -> <domain>         (coerce a DC — INFERRED)
+  ConstrainedDeleg    principal -> target          (S4U impersonation — INFERRED)
 
-Nodes are identified by normalized name (upper-case, no @domain), so SIDs
-resolved by the parser line up across edge types.
+Trust tiers
+-----------
+``observed`` — the edge is a relationship read directly from the data.
+``inferred`` — the edge requires an additional abuse step (coercion, S4U) that
+               the data makes *possible* but does not prove.
+
+Nodes are identified by normalized name (upper-case, no @domain). Pathfinding is
+deterministic and never consults an LLM.
 """
 from __future__ import annotations
 
@@ -32,14 +39,16 @@ _TAKEOVER_RIGHTS = {
     "genericall", "genericwrite", "writedacl", "writeowner", "owns",
     "allextendedrights", "addkeycredentiallink", "writespn",
 }
-_GROUP_WRITE_RIGHTS = {"addmember", "addself", "genericall", "genericwrite", "writedacl", "writeowner"}
+
+_INFERRED_TYPES = {"Unconstrained", "ConstrainedDeleg"}
 
 
 class Edge:
-    __slots__ = ("src", "dst", "type", "detail")
+    __slots__ = ("src", "dst", "type", "detail", "trust")
 
-    def __init__(self, src: str, dst: str, etype: str, detail: str = ""):
-        self.src, self.dst, self.type, self.detail = src, dst, etype, detail
+    def __init__(self, src: str, dst: str, etype: str, detail: str = "",
+                 trust: str = "observed"):
+        self.src, self.dst, self.type, self.detail, self.trust = src, dst, etype, detail, trust
 
 
 class AttackGraph:
@@ -55,7 +64,6 @@ class AttackGraph:
     # ── Construction ────────────────────────────────────────────────────────
     def _node(self, name: str, computer: bool = False) -> str:
         n = norm(name)
-        # Prefer a fully-qualified display name over a bare SID/short name.
         cur = self.display.get(n)
         if cur is None or ("@" in (name or "") and "@" not in cur):
             self.display[n] = name or n
@@ -68,7 +76,8 @@ class AttackGraph:
         s = self._node(src, src_is_computer)
         d = self._node(dst, dst_is_computer)
         if s and d and s != d:
-            self.adj.setdefault(s, []).append(Edge(s, d, etype, detail))
+            trust = "inferred" if etype in _INFERRED_TYPES else "observed"
+            self.adj.setdefault(s, []).append(Edge(s, d, etype, detail, trust))
 
     def _build(self):
         d = self.data
@@ -120,9 +129,18 @@ class AttackGraph:
                        "ConstrainedDeleg", "S4U impersonation")
 
     # ── Goal / start sets ─────────────────────────────────────────────────────
-    def goal_nodes(self) -> Set[str]:
+    def _all_nodes(self) -> Set[str]:
+        return self.adj.keys() | {e.dst for edges in self.adj.values() for e in edges}
+
+    def goal_nodes(self, targets: Optional[List[str]] = None) -> Set[str]:
+        """Default goals are Tier-0 (+ the domain). ``targets`` overrides with an
+        explicit set of critical assets (matched by normalized name)."""
+        if targets:
+            # Explicit critical assets; a target absent from the graph simply
+            # yields no path rather than an error.
+            return {norm(t) for t in targets if t}
         goals = {self.domain_node}
-        for n in self.adj.keys() | {e.dst for edges in self.adj.values() for e in edges}:
+        for n in self._all_nodes():
             if self.idx.is_tier0_target(self.display.get(n, n)):
                 goals.add(n)
         return goals
@@ -130,31 +148,37 @@ class AttackGraph:
     def start_nodes(self, owned: Optional[List[str]] = None) -> Set[str]:
         if owned:
             return {norm(o) for o in owned if o}
-        # Default: everything any authenticated user controls.
-        nodes = self.adj.keys() | {e.dst for edges in self.adj.values() for e in edges}
+        nodes = self._all_nodes()
         return {n for n in nodes if norm(self.display.get(n, n)) in BROAD_NAMES}
 
     # ── Pathfinding ────────────────────────────────────────────────────────────
     def shortest_paths(self, owned: Optional[List[str]] = None,
-                       max_paths: int = 5) -> List[List[Edge]]:
-        """Return up to ``max_paths`` short, node-diverse paths from the start
-        set to the nearest Tier-0 node. Empty if no start or no route."""
-        starts, goals = self.start_nodes(owned), self.goal_nodes()
+                       max_paths: int = 5,
+                       targets: Optional[List[str]] = None) -> List[List[Edge]]:
+        """Up to ``max_paths`` short, node-diverse paths from the start set to the
+        nearest goal. ``targets`` overrides the default Tier-0 goals."""
+        starts, goals = self.start_nodes(owned), self.goal_nodes(targets)
         if not starts or not goals:
             return []
-        starts = {s for s in starts if s not in goals}  # already-owned goals are trivial
+        starts = {s for s in starts if s not in goals}
         paths, banned = [], set()
         for _ in range(max_paths):
             path = self._bfs(starts, goals, banned)
             if not path:
                 break
             paths.append(path)
-            # Ban one intermediate node to force a different route next time.
             intermediates = [e.dst for e in path[:-1]]
             if not intermediates:
                 break
             banned.add(intermediates[len(intermediates) // 2])
+        # Rank: fewer hops first, then fewer inferred edges, then stable by names.
+        paths.sort(key=self._rank_key)
         return paths
+
+    def _rank_key(self, path: List[Edge]):
+        inferred = sum(1 for e in path if e.trust == "inferred")
+        names = "→".join(e.dst for e in path)
+        return (len(path), inferred, names)
 
     def _bfs(self, starts: Set[str], goals: Set[str], banned: Set[str]) -> List[Edge]:
         q = deque()
@@ -177,25 +201,59 @@ class AttackGraph:
         return []
 
     def _reconstruct(self, goal: str, prev: Dict[str, Edge]) -> List[Edge]:
-        path = []
-        node = goal
+        path, node = [], goal
         while node in prev:
             e = prev[node]
             path.append(e)
             node = e.src
         return list(reversed(path))
 
+    # ── Remediation impact ─────────────────────────────────────────────────────
+    def remediation_impact(self, owned: Optional[List[str]] = None,
+                           targets: Optional[List[str]] = None) -> List[Dict]:
+        """For each edge on the shortest path, determine whether removing it
+        disconnects the foothold from the target (a 'choke point' — the
+        highest-value fix) and whether any alternative path remains.
+
+        Returns ``[{from, to, type, breaks_path, alternative_remains}]`` ordered
+        as the path is walked. Empty if there is no path."""
+        starts, goals = self.start_nodes(owned), self.goal_nodes(targets)
+        base = self._bfs(starts, {g for g in goals}, set())
+        if not base:
+            return []
+        starts = {s for s in starts if s not in goals}
+        out = []
+        for e in base:
+            cut = {e.dst}  # removing the node that this edge grants control of
+            remains = bool(self._bfs(starts, goals, cut))
+            out.append({
+                "from": self.display.get(e.src, e.src),
+                "to": self.display.get(e.dst, e.dst),
+                "type": e.type,
+                "breaks_path": not remains,
+                "alternative_remains": remains,
+            })
+        return out
+
     # ── Rendering helpers ─────────────────────────────────────────────────────
     def describe(self, path: List[Edge]) -> Dict:
-        """Turn a path into a report-ready dict: ordered steps + commands."""
+        """Turn a path into a report-ready dict: ordered steps (with trust and
+        evidence), commands, a risk score, and a plain-English rank rationale."""
         steps, commands = [], []
         for e in path:
             src, dst = self.display.get(e.src, e.src), self.display.get(e.dst, e.dst)
-            steps.append({"from": src, "to": dst, "type": e.type, "detail": e.detail})
+            steps.append({"from": src, "to": dst, "type": e.type,
+                          "detail": e.detail, "trust": e.trust})
             commands.append(self._command(e, src, dst))
+        inferred = sum(1 for e in path if e.trust == "inferred")
         start = self.display.get(path[0].src, path[0].src) if path else ""
         end = self.display.get(path[-1].dst, path[-1].dst) if path else ""
+        rationale = (f"{len(path)} hop(s)"
+                     + (f", {inferred} requiring an inferred abuse step (coercion / S4U)"
+                        if inferred else ", all steps are observed relationships")
+                     + ". Shorter, fully-observed paths rank higher.")
         return {"hops": len(path), "start": start, "goal": end,
+                "inferred_steps": inferred, "rationale": rationale,
                 "steps": steps, "commands": commands}
 
     def _command(self, e: Edge, src: str, dst: str) -> str:

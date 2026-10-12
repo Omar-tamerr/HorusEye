@@ -155,6 +155,7 @@ def main():
     g3.add_argument("--da-checklist", action="store_true", help="Domain takeover step-by-step checklist")
     g3.add_argument("--graph",        action="store_true", help="Compute shortest attack path(s) to Domain Admin")
     g3.add_argument("--owned",        metavar="PRINCIPALS", help="Comma-separated owned principals to path from (default: any domain user)")
+    g3.add_argument("--target",       metavar="ASSETS", help="Comma-separated critical assets to path to (default: Tier-0)")
     g3.add_argument("--max-paths",    type=int, default=5, help="Max attack paths to show with --graph (default: 5)")
 
     # ── Exploitation ──────────────────────────────────────────────────────
@@ -350,15 +351,18 @@ def render_attack_paths(domain_data, args):
     described paths for inclusion in reports."""
     from horuseye.core.graph import AttackGraph
 
-    console.print(Rule("[bold red][ 𓂀 ATTACK PATHS TO DOMAIN ADMIN ][/bold red]"))
-    console.print()
     owned = [o.strip() for o in (args.owned or "").split(",") if o.strip()]
+    targets = [t.strip() for t in (getattr(args, "target", "") or "").split(",") if t.strip()]
+    goal_label = ", ".join(targets) if targets else "Domain Admin"
+    console.print(Rule(f"[bold red][ 𓂀 ATTACK PATHS TO {goal_label.upper()} ][/bold red]"))
+    console.print()
     graph = AttackGraph(domain_data)
-    paths = graph.shortest_paths(owned=owned or None, max_paths=max(1, args.max_paths))
+    paths = graph.shortest_paths(owned=owned or None, max_paths=max(1, args.max_paths),
+                                 targets=targets or None)
 
     if not paths:
         origin = ", ".join(owned) if owned else "any domain user"
-        console.print(f"  [yellow]No attack path to Domain Admin found from {origin}.[/yellow]")
+        console.print(f"  [yellow]No attack path to {goal_label} found from {origin}.[/yellow]")
         console.print("  [dim]Provide a foothold with --owned USER@DOMAIN, or ingest local-admin/"
                       "session data (SharpHound -c All) for richer paths.[/dim]\n")
         return []
@@ -367,19 +371,31 @@ def render_attack_paths(domain_data, args):
     for i, path in enumerate(paths, 1):
         desc = graph.describe(path)
         described.append(desc)
+        tag = f" · {desc['inferred_steps']} inferred step(s)" if desc["inferred_steps"] else ""
         console.print(f"  [bold white]Path {i}[/bold white]  "
                       f"[dim]({desc['hops']} hop{'s' if desc['hops'] != 1 else ''}: "
-                      f"{desc['start']} → {desc['goal']})[/dim]")
+                      f"{desc['start']} → {desc['goal']}{tag})[/dim]")
         console.print(f"    [green]{desc['start']}[/green]")
         for step, cmd in zip(desc["steps"], desc["commands"]):
             style = _EDGE_STYLE.get(step["type"], "white")
+            trust = "" if step["trust"] == "observed" else " [italic yellow](inferred)[/italic yellow]"
             console.print(f"      [dim]│[/dim] [{style}]{step['type']}[/{style}] "
-                          f"[dim]({step['detail']})[/dim]")
+                          f"[dim]({step['detail']})[/dim]{trust}")
             first_cmd = cmd.split(chr(10))[0]
             console.print(f"      [dim]▼[/dim] [bold white]{step['to']}[/bold white]  "
                           f"[dim]{first_cmd}[/dim]")
         console.print()
-    console.print(f"  [bold red]𓂀 {len(described)} path(s) to Domain Admin. "
+
+    # Remediation impact: which single fix breaks the shortest path.
+    impact = graph.remediation_impact(owned=owned or None, targets=targets or None)
+    chokes = [h for h in impact if h["breaks_path"]]
+    if chokes:
+        console.print("  [bold cyan]𓂀 Remediation impact[/bold cyan] [dim](break the shortest path):[/dim]")
+        for h in chokes:
+            console.print(f"    [green]✂[/green]  remove [bold]{h['type']}[/bold] "
+                          f"{h['from']} → {h['to']}  [dim](no alternative path remains)[/dim]")
+        console.print()
+    console.print(f"  [bold red]𓂀 {len(described)} path(s) to {goal_label}. "
                   f"Shortest: {described[0]['hops']} hop(s).[/bold red]\n")
     return described
 

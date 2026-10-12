@@ -90,3 +90,67 @@ def test_alternate_paths_are_node_diverse():
     paths = AttackGraph(data).shortest_paths(owned=["BOB@CORP.LOCAL"], max_paths=3)
     middles = {tuple(e.dst for e in p) for p in paths}
     assert len(middles) >= 2
+
+
+# ── Stage C: trust labels, targets, ranking, remediation impact ──────────────
+def test_edges_labeled_observed_or_inferred():
+    data = _data(
+        local_admins=[{"principal": "BOB@CORP.LOCAL", "computer": "WEB01.CORP.LOCAL"}],
+        computers=[{"name": "WEB01.CORP.LOCAL", "unconstrained_delegation": True}],
+    )
+    desc = AttackGraph(data).describe(AttackGraph(data).shortest_paths(owned=["BOB@CORP.LOCAL"])[0])
+    trust = {s["type"]: s["trust"] for s in desc["steps"]}
+    assert trust["AdminTo"] == "observed"
+    assert trust["Unconstrained"] == "inferred"
+    assert desc["inferred_steps"] == 1
+    assert "inferred" in desc["rationale"]
+
+
+def test_configurable_target_other_than_tier0():
+    # BOB can take over a non-Tier-0 "crown jewel" server via GenericAll.
+    data = _data(acls=[{"principal": "BOB@CORP.LOCAL", "target": "FILESERVER@CORP.LOCAL",
+                        "right": "GenericAll"}])
+    g = AttackGraph(data)
+    paths = g.shortest_paths(owned=["BOB@CORP.LOCAL"], targets=["FILESERVER@CORP.LOCAL"])
+    assert paths and g.describe(paths[0])["goal"] == "FILESERVER@CORP.LOCAL"
+
+
+def test_fully_observed_path_ranks_before_inferred():
+    # Two routes to DA: one all-observed (2 hops), one with an inferred hop (2 hops).
+    data = _data(
+        groups=[{"name": "DOMAIN ADMINS@CORP.LOCAL", "admincount": True}],
+        acls=[{"principal": "BOB@CORP.LOCAL", "target": "G1@CORP.LOCAL", "right": "GenericAll"},
+              {"principal": "G1@CORP.LOCAL", "target": "DOMAIN ADMINS@CORP.LOCAL", "right": "GenericAll"}],
+        local_admins=[{"principal": "BOB@CORP.LOCAL", "computer": "WEB01@CORP.LOCAL"}],
+        computers=[{"name": "WEB01@CORP.LOCAL", "unconstrained_delegation": True}],
+    )
+    paths = AttackGraph(data).shortest_paths(owned=["BOB@CORP.LOCAL"], max_paths=5)
+    # The first ranked path must have no inferred edges.
+    assert all(e.trust == "observed" for e in paths[0])
+
+
+def test_remediation_impact_flags_choke_point():
+    # Single linear path BOB → HELPDESK → DA: both edges are choke points.
+    data = _data(
+        groups=[{"name": "HELPDESK@CORP.LOCAL", "members": ["BOB@CORP.LOCAL"]},
+                {"name": "DOMAIN ADMINS@CORP.LOCAL", "admincount": True}],
+        acls=[{"principal": "HELPDESK@CORP.LOCAL", "target": "DOMAIN ADMINS@CORP.LOCAL",
+               "right": "GenericAll"}],
+    )
+    impact = AttackGraph(data).remediation_impact(owned=["BOB@CORP.LOCAL"])
+    assert impact and all(h["breaks_path"] for h in impact)
+    assert any(h["type"] == "ACL" for h in impact)
+
+
+def test_remediation_impact_sees_alternative():
+    # Two independent routes: removing one node leaves the other.
+    data = _data(
+        groups=[{"name": "DOMAIN ADMINS@CORP.LOCAL", "admincount": True}],
+        acls=[{"principal": "BOB@CORP.LOCAL", "target": "G1@CORP.LOCAL", "right": "GenericAll"},
+              {"principal": "G1@CORP.LOCAL", "target": "DOMAIN ADMINS@CORP.LOCAL", "right": "GenericAll"},
+              {"principal": "BOB@CORP.LOCAL", "target": "G2@CORP.LOCAL", "right": "GenericAll"},
+              {"principal": "G2@CORP.LOCAL", "target": "DOMAIN ADMINS@CORP.LOCAL", "right": "GenericAll"}],
+    )
+    impact = AttackGraph(data).remediation_impact(owned=["BOB@CORP.LOCAL"])
+    # The intermediate group on the chosen path has an alternative via the other.
+    assert any(h["alternative_remains"] for h in impact)
