@@ -4,6 +4,51 @@ All notable changes to HorusEye are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-10-12
+
+Turns HorusEye from a finding list into a path-aware analyzer that serves
+both red and blue teams, and makes it trustworthy on real SharpHound exports.
+
+### Added
+- **Attack-path graph engine** (`--graph`): builds a directed control graph
+  from group membership, abusable ACL edges, local-admin rights, sessions,
+  DCSync rights and delegation, then BFS-finds the shortest route from a
+  foothold to Domain Admin and prints the ordered steps with the command for
+  each. `--owned USER@DOMAIN` sets the foothold (default: any domain user);
+  `--max-paths` bounds how many node-diverse routes are shown.
+- **Knowledge base**: every finding now carries MITRE ATT&CK technique(s),
+  concrete remediation steps and detection guidance (event IDs / telemetry),
+  so one report is actionable for defenders too.
+- **Markdown report** (`--markdown`) with Mermaid attack-path diagrams;
+  **professional HTML** rework (severity tiles, ATT&CK coverage table,
+  per-finding remediation/detection); **JSON** gains a versioned schema
+  (`horuseye.report/2`) with a summary block and the computed attack paths.
+- **Retest diff** (`--diff OLD.json`): New / Fixed / Unchanged against a
+  previous JSON report, by stable finding id.
+- **CI gate** (`--fail-on LEVEL`): non-zero exit when a finding at/above a
+  severity exists.
+- Richer BloodHound parsing: local-admin edges (legacy + CE formats),
+  constrained-delegation targets, and merged session sources.
+- AI layer: `--ai-redact` masks domain/principal names before they leave the
+  machine; `--ai-model` selects the model.
+
+### Changed
+- **Noise reduction** for real exports: DCSync requires genuine replication
+  capability and skips expected replicators; ACL/GPO findings drop noise and
+  already-Tier-0 principals, dedupe, and aggregate mass grants; broad-group
+  grants are flagged. A shared principal model (`core/principals.py`) backs
+  this and the graph.
+- Every finding gets a stable id; findings are enriched with ATT&CK /
+  remediation / detection in the pipeline.
+- AI layer rewritten on the official `anthropic` SDK (optional dependency
+  `horuseye[ai]`), current model `claude-opus-5-5`, per-finding narratives,
+  and surfaced errors.
+
+### Fixed
+- AI narratives were keyed by finding type, so same-type findings shared one
+  narrative — now keyed by finding id.
+- The AI layer no longer swallows all errors silently.
+
 ## [2.1.0] - 2026-10-11
 
 The detection engine is now real. v2.0 advertised 13 attack-path types but
@@ -71,5 +116,6 @@ and restructures the project into a proper installable package.
   hash-cracking engine, password sprayer, wordlist generator, lateral-movement
   mapper, attack timeline, team collaboration, and HTML/JSON reporting.
 
+[2.2.0]: https://github.com/Omar-tamerr/HorusEye/releases/tag/v2.2.0
 [2.1.0]: https://github.com/Omar-tamerr/HorusEye/releases/tag/v2.1.0
 [2.0.0]: https://github.com/Omar-tamerr/HorusEye/releases/tag/v2.0.0

@@ -9,7 +9,7 @@
  ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝
  ███████╗██╗   ██╗███████╗
  ██╔════╝╚██╗ ██╔╝██╔════╝
- █████╗   ╚████╔╝ █████╗    v2.1
+ █████╗   ╚████╔╝ █████╗    v2.2
  ██╔══╝    ╚██╔╝  ██╔══╝
  ███████╗   ██║   ███████╗
  ╚══════╝   ╚═╝   ╚══════╝
@@ -24,7 +24,7 @@ command to validate each one.
 ![Python](https://img.shields.io/badge/Python-3.8%2B-blue?style=flat-square&logo=python)
 ![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows-purple?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
-![Version](https://img.shields.io/badge/Version-2.1-red?style=flat-square)
+![Version](https://img.shields.io/badge/Version-2.2-red?style=flat-square)
 ![Tests](https://img.shields.io/badge/tests-pytest-success?style=flat-square)
 ![Author](https://img.shields.io/badge/Author-Omar%20Tamer-gold?style=flat-square)
 
@@ -44,28 +44,38 @@ For CTF players specifically: HorusEye automates the reconnaissance-to-privilege
 
 ---
 
-## What's New in v2.1
+## What's New in v2.2
 
-- **Full detection engine.** All 13 attack-path types are now implemented (v2.0 shipped only Kerberoasting and AS-REP roasting). DCSync, ACL abuse, GPO abuse, delegation, ADCS ESC1–ESC8, trusts, privileged sessions, password policy and stale-admin detection all consume the data the parsers already extract.
-- **Impact-aware scoring.** A Tier-0 privilege model promotes direct-to-DA paths to CRITICAL, and scoring now blends severity with exploitability so the shortest path to Domain Admin ranks first.
-- **Runs on Windows out of the box.** Fixed the `UnicodeEncodeError` that crashed every run on a legacy (cp1252) console; HTML/JSON/report writes are now UTF-8.
-- **Installable.** `pip install -e .` provides a `horuseye` command; `--check-deps` previews the external toolchain.
-- **Honest `--da-checklist` and `--team-connect`.** The checklist now auto-ticks from real findings; team-connect no longer connects and immediately exits.
-- **Tested & CI'd.** A pytest suite guards the detection behaviour, and GitHub Actions runs it on Linux and Windows.
+- **Attack-path graph engine (`--graph`).** HorusEye now builds a directed *control* graph from group membership, abusable ACLs, local-admin rights, sessions, DCSync and delegation, and finds the **shortest path from a foothold to Domain Admin** — printing the ordered steps and the command for each. BloodHound shows the graph; HorusEye tells you the order to walk it. Set the foothold with `--owned USER@DOMAIN` (default: any domain user).
+- **Built for defenders too.** Every finding now carries **MITRE ATT&CK** technique(s), **remediation** steps, and **detection** guidance (event IDs / telemetry), so one report is actionable for red *and* blue teams.
+- **Trustworthy on real exports.** Noise reduction drops expected rights (Domain Admins' GenericAll, DCs replicating), collapses duplicate ACEs, and aggregates mass grants — so a real SharpHound export produces a readable finding list, not thousands of rows.
+- **Professional reports.** Reworked dark-theme **HTML** (severity tiles, ATT&CK table, per-finding remediation/detection), a new **Markdown** export (`--markdown`) with Mermaid attack-path diagrams, and a versioned **JSON** schema.
+- **Repeatable workflow.** `--diff OLD.json` shows New / Fixed / Unchanged against a previous run; `--fail-on LEVEL` exits non-zero for CI gating.
+- **Modernized AI layer.** Official Anthropic SDK, current model (`claude-opus-5-5`), per-finding narratives, surfaced errors, and `--ai-redact` to mask client names before anything leaves the machine.
 
-See the [Roadmap](#roadmap) for what's next.
+<details><summary><b>What was new in v2.1</b></summary>
+
+- All 13 attack-path types implemented (v2.0 shipped only Kerberoasting and AS-REP roasting).
+- Impact-aware scoring with a Tier-0 privilege model; CRITICAL made reachable.
+- Fixed the Windows `UnicodeEncodeError` crash; UTF-8 everywhere.
+- Installable `horuseye` command (`pip install -e .`); `--check-deps` preflight.
+- Honest `--da-checklist` and `--team-connect`; pytest suite + CI.
+</details>
+
+See the [full changelog](CHANGELOG.md) and the [Roadmap](#roadmap).
 
 ---
 
 ## Contents
 
-- [What's New in v2.1](#whats-new-in-v21)
+- [What's New in v2.2](#whats-new-in-v22)
 - [Features](#features)
 - [Installation](#installation)
 - [Project Structure](#project-structure)
 - [Quick Start](#quick-start)
 - [Input Sources](#input-sources)
 - [Attack Detection](#attack-detection)
+- [Attack Paths](#attack-paths)
 - [Hash Cracking Engine](#hash-cracking-engine)
 - [Username Wordlist Generator](#username-wordlist-generator)
 - [Password Spraying](#password-spraying)
@@ -171,13 +181,20 @@ attack lifecycle, so the code reads the way an engagement runs:
 horuseye/
 ├── cli.py            # argument parsing + orchestration (entry point)
 ├── parsers/          # ingest BloodHound, ldapdomaindump, CME, NetExec, Certipy
-├── core/             # attack_detector (13 detections) + path_scorer
+├── core/             # the analysis brain:
+│   ├── attack_detector.py   # the 13 detections
+│   ├── path_scorer.py       # exploitability scoring
+│   ├── principals.py        # Tier-0 / noise / broad principal model
+│   ├── knowledge.py         # ATT&CK + remediation + detection per finding
+│   ├── graph.py             # attack-path graph → shortest route to DA
+│   └── diff.py              # retest diff + CI fail-gate
 ├── engine/           # hash cracking, lateral movement, timeline, checklist, ...
 ├── features/         # creds manager, password spray, wordlist gen, team collab
-├── reports/          # CLI / HTML / JSON report generation
-├── ai/               # optional Claude narrative layer
+├── reports/          # CLI / HTML / Markdown / JSON report generation
+├── ai/               # optional Claude narrative layer (horuseye[ai])
 └── utils/            # config, dependency preflight, help
-tests/                # pytest suite (parsers, scorer, detection engine)
+tests/                # pytest suite — 59 tests (parsers, detector, graph,
+                      #   knowledge, noise reduction, reports, diff, AI)
 docs/                 # screenshots and reference material
 ```
 
@@ -268,7 +285,7 @@ python3 horuseye.py \
 
 ![Findings](docs/imgs/02_findings.png)
 
-HorusEye detects **all 13 attack path types** below (new in v2.1 — types 3–13 were implemented in this release). Each finding includes a severity, the affected account/object, a standard documented command to validate it, a short rationale, and — with a key configured — an AI-generated attack narrative.
+HorusEye detects **all 13 attack path types** below (all implemented — see the [changelog](CHANGELOG.md)). Each finding includes a severity, the affected account/object, a standard documented command to validate it, a short rationale, and — with a key configured — an AI-generated attack narrative.
 
 | # | Attack Type | Severity | What it detects |
 |---|---|---|---|
@@ -288,7 +305,40 @@ HorusEye detects **all 13 attack path types** below (new in v2.1 — types 3–1
 
 Findings are scored **0–100**, combining severity with an exploitability-ease factor, and sorted so the shortest path to Domain Admin surfaces first (a one-command DCSync outranks a crack-then-pivot chain). The **Tier-0 privilege model** — built from `adminCount` and well-known group membership — promotes any path that lands directly on a Domain/Enterprise Admin to CRITICAL.
 
-> **Scope note.** Detection reports *where* a misconfiguration exists and the standard, publicly documented command to validate it. The offensive execution engines (`--auto-exploit`, `--auto-chain`, `--lsass-dump`) are stubs in v2.1 — they print the method rather than executing it — and are tracked on the [Roadmap](#roadmap). Detection itself requires none of the external tools.
+> **Scope note.** Detection reports *where* a misconfiguration exists and the standard, publicly documented command to validate it. The offensive execution engines (`--auto-exploit`, `--auto-chain`, `--lsass-dump`) are stubs — they print the method rather than executing it — and are tracked on the [Roadmap](#roadmap). Detection itself requires none of the external tools.
+
+---
+
+## Attack Paths
+
+`--graph` is the difference between a list of problems and a plan. HorusEye builds a directed **control graph** — where an edge `A → B` means "control of A yields control of B" — from group membership, abusable ACLs, local-admin rights (`AdminTo`), sessions (`HasSession`), DCSync rights, and delegation, then finds the **shortest route from a foothold to Domain Admin** and prints the ordered steps with the command for each.
+
+```bash
+# What can a given user reach?
+horuseye --bloodhound ./bh/ --domain corp.local --dc 10.10.10.5 --graph --owned 'bob@corp.local'
+
+# What can ANY domain user reach? (default start = broad groups)
+horuseye --bloodhound ./bh/ --domain corp.local --graph
+```
+
+```
+Path 1  (3 hops: BOB@CORP.LOCAL → SVC-ADM@CORP.LOCAL)
+  BOB@CORP.LOCAL
+    │ MemberOf (member of group)
+    ▼ HELPDESK@CORP.LOCAL
+    │ AdminTo (local administrator)
+    ▼ WS01.CORP.LOCAL     nxc smb WS01 -u USER -p PASS --sam
+    │ HasSession (credentials in memory)
+    ▼ SVC-ADM@CORP.LOCAL  # dump LSASS on WS01 to recover SVC-ADM
+```
+
+Paths are included in the HTML report and rendered as Mermaid diagrams in the Markdown export. Richer paths need local-admin and session data — collect with `SharpHound.exe -c All`.
+
+| Flag | Purpose |
+|---|---|
+| `--graph` | Compute and print the shortest attack path(s) to Domain Admin |
+| `--owned PRINCIPALS` | Comma-separated foothold principals (default: any domain user) |
+| `--max-paths N` | Maximum node-diverse paths to show (default: 5) |
 
 ---
 
@@ -456,7 +506,7 @@ tl.export_timeline_txt('timeline.txt', 'corp.local')
 
 ## Auto-Exploit Chain
 
-> **v2.1 status:** these flags are **stubs** — they print the chain/method and the
+> **Status:** these flags are **stubs** — they print the chain/method and the
 > commands to run rather than executing against a DC. Live execution is on the
 > [Roadmap](#roadmap). The sections below describe the intended workflow.
 
@@ -483,7 +533,7 @@ In `--interactive` mode, HorusEye acts as a senior red team operator. It present
 
 ## LSASS Dump Automation
 
-> **v2.1 status:** stub — prints the recommended dump method and commands rather
+> **Status:** stub — prints the recommended dump method and commands rather
 > than executing them. See the [Roadmap](#roadmap).
 
 Selects an LSASS dump method based on the environment and prints the exact commands to run.
@@ -695,12 +745,22 @@ Team Collaboration:
   --team-connect HOST   Connect to existing session (HOST:PORT)
   --team-port INT       Port for collaboration server (default: 31337)
 
+Attack Paths:
+  --graph               Compute shortest attack path(s) to Domain Admin
+  --owned PRINCIPALS    Comma-separated owned principals (default: any user)
+  --max-paths N         Max attack paths to show (default: 5)
+
 AI + Output:
   --claude-key KEY      Anthropic API key
   --no-ai               Skip Claude AI analysis
-  --deep                Deep AI analysis mode
+  --deep                Deeper AI analysis (higher reasoning effort)
+  --ai-model MODEL      Claude model for narratives (default: claude-opus-5-5)
+  --ai-redact           Mask domain/principal names before sending to the API
   --report FILE         Export HTML report
-  --json FILE           Export JSON findings
+  --markdown FILE       Export Markdown report (Mermaid attack-path diagrams)
+  --json FILE           Export JSON findings (schema horuseye.report/2)
+  --diff OLD.json       Retest: compare to a previous JSON report
+  --fail-on LEVEL       Exit non-zero if a finding at/above LEVEL exists (CI)
   --severity LEVEL      Filter: critical | high | all
   --config              Configure persistent settings
   --check-deps          Report which external tools are on PATH
@@ -756,17 +816,18 @@ pip install -e ".[dev]"   # installs pytest
 pytest -q
 ```
 
-The suite covers the BloodHound parser, the scorer, and the full detection
-engine — including a regression guard that fails if the detector ever stops
-emitting any of the 13 types or stops producing CRITICAL findings. CI runs the
-same suite plus a `--help` / `--check-deps` smoke test on Linux and Windows
-(the Windows job guards the console-encoding fix).
+59 tests cover the BloodHound parser, the scorer, the full detection engine,
+noise reduction, the knowledge base, the attack-path graph, report exports, the
+retest diff, and the AI layer (with a fake SDK — no network). A regression guard
+fails if the detector ever stops emitting any of the 13 types or stops producing
+CRITICAL findings. CI runs the suite plus a `--help` / `--check-deps` smoke test
+on Linux and Windows (the Windows job guards the console-encoding fix).
 
 ---
 
 ## Roadmap
 
-HorusEye v2.1 is an **analysis** platform: it detects and ranks paths and hands
+HorusEye is an **analysis** platform: it detects and ranks paths and hands
 you the validated command for each. The following are tracked for future
 releases:
 
@@ -774,12 +835,14 @@ releases:
   `--lsass-dump` currently print the method rather than executing it. Wiring
   them to live execution is a deliberate, opt-in capability change rather than
   silent behaviour.
-- **Attack-path graphing.** Model principals and abusable edges as a directed
-  graph and compute the shortest path from an owned foothold to Domain Admin,
-  then emit the ordered command sequence to walk it.
-- **Model refresh for the AI layer.** Move narrative generation to the current
-  Claude model family and expand it from per-finding narratives to full
-  chain-ordering guidance.
+- **AI chain-ordering.** Extend the narrative layer (shipped on the current
+  model in v2.2) from per-finding narratives to full attack-chain reasoning
+  over the computed graph paths.
+- **Graph coverage.** Add ADCS and shadow-credential edges to the attack-path
+  graph, and weighted paths (by exploitation ease, not just hop count).
+
+*Shipped in v2.2: the attack-path graph engine, the defender-facing knowledge
+base, and the modernized AI layer.*
 
 Contributions and issues are welcome at the
 [issue tracker](https://github.com/Omar-tamerr/HorusEye/issues).
@@ -816,6 +879,6 @@ Penetration Tester — Egypt
 
 <div align="center">
 
-*HorusEye v2.1 — Built for red teamers, by a red teamer*
+*HorusEye v2.2 — Built for red teamers, by a red teamer*
 
 </div>
