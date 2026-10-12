@@ -152,13 +152,26 @@ class ReportGenerator:
         rem = "".join(f"<li>{esc(r)}</li>" for r in f.get("remediation", []))
         det = "".join(f"<li>{esc(d)}</li>" for d in f.get("detection", []))
         score = f.get("score")
+        conf = (f.get("confidence") or "").upper()
+        ev_items = f.get("evidence", []) or []
+        ev_html = ""
+        if ev_items:
+            rows = "".join(
+                f"<li><code>{esc(e.get('object',''))}</code>"
+                + (f" — {esc(e.get('detail',''))}" if e.get('detail') else "")
+                + f" <span class='meta'>({esc(e.get('source',''))})</span></li>"
+                for e in ev_items[:50])
+            more = f"<li class='meta'>+{len(ev_items)-50} more</li>" if len(ev_items) > 50 else ""
+            ev_html = f'<div class="lab">Evidence ({len(ev_items)})</div><ul>{rows}{more}</ul>'
         return f"""<div class="card" style="border-left-color:{hexc}">
   <h3>{esc(f.get("title",""))}</h3>
   <div><span class="sev" style="color:{hexc}">{sev}</span>
     {f'<span class="meta"> · score {score}</span>' if score is not None else ''}
+    {f'<span class="meta"> · confidence {conf}</span>' if conf else ''}
     {f'<span class="meta"> · {mitre}</span>' if mitre else ''}</div>
   <div class="aff">{esc(f.get("affected",""))}</div>
   {f'<p>{esc(f.get("description",""))}</p>' if f.get("description") else ''}
+  {ev_html}
   {f'<div class="lab">Validate</div>{cmds}' if cmds else ''}
   {f'<div class="lab">Remediation</div><ul>{rem}</ul>' if rem else ''}
   {f'<div class="lab">Detection</div><ul>{det}</ul>' if det else ''}
@@ -210,8 +223,18 @@ class ReportGenerator:
         for f in sorted(self.findings, key=lambda x: SEV_ORDER.index((x.get("severity") or "INFO").upper())):
             out.append(f"### [{(f.get('severity') or 'INFO').upper()}] {f.get('title','')}")
             if f.get("score") is not None:
-                out.append(f"*Score {f['score']}* · " + " ".join(m["id"] for m in f.get("mitre", [])))
+                out.append(f"*Score {f['score']}* · confidence {(f.get('confidence') or '').upper()} · "
+                           + " ".join(m["id"] for m in f.get("mitre", [])))
             out += ["", f"**Affected:** `{f.get('affected','')}`", ""]
+            ev_items = f.get("evidence", []) or []
+            if ev_items:
+                out.append(f"**Evidence ({len(ev_items)}):**")
+                for e in ev_items[:50]:
+                    d = f" — {e.get('detail','')}" if e.get('detail') else ""
+                    out.append(f"- `{e.get('object','')}`{d} ({e.get('source','')})")
+                if len(ev_items) > 50:
+                    out.append(f"- *+{len(ev_items)-50} more*")
+                out.append("")
             if f.get("description"):
                 out += [f.get("description"), ""]
             if f.get("commands"):
@@ -233,7 +256,7 @@ class ReportGenerator:
     def export_json(self, filepath: str):
         data = {
             "tool": TOOL,
-            "schema": "horuseye.report/2",
+            "schema": "horuseye.report/3",
             "generated": datetime.now().isoformat(),
             "author": "Omar Tamer",
             "domain": self.domain_data.get("domain", ""),
