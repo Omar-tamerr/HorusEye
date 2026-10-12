@@ -29,10 +29,15 @@ TOOL = "HorusEye v2.2"
 
 
 class ReportGenerator:
-    def __init__(self, findings: list, domain_data: dict, console=None):
+    def __init__(self, findings: list, domain_data: dict, console=None,
+                 generated_at: str = None):
         self.findings = findings
         self.domain_data = domain_data
         self.attack_paths = []        # set by the CLI when --graph runs
+        # Timestamp is injectable so reports are byte-reproducible for the same
+        # input + config (e.g. CI sets SOURCE_DATE_EPOCH). Defaults to now.
+        self.generated_at = generated_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.generated_iso = generated_at or datetime.now().isoformat(timespec="seconds")
         if console is None and RICH:
             from rich.console import Console as RC
             self.console = RC()
@@ -69,7 +74,7 @@ class ReportGenerator:
         c = self._counts()
         dom = html.escape(str(self.domain_data.get("domain", "N/A")))
         dc = html.escape(str(self.domain_data.get("dc_ip", "N/A")))
-        gen = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        gen = self.generated_at
 
         tiles = "".join(
             f'<div class="tile" style="border-color:{SEV_HEX[s]}">'
@@ -196,7 +201,7 @@ class ReportGenerator:
         d = self.domain_data
         out = [f"# {TOOL} — Attack-Path Report", ""]
         out.append(f"**Domain:** `{d.get('domain','N/A')}`  |  **DC:** `{d.get('dc_ip','N/A')}`  "
-                   f"|  **Generated:** {datetime.now():%Y-%m-%d %H:%M:%S}")
+                   f"|  **Generated:** {self.generated_at}")
         out += ["", "## Summary", "",
                 "| Severity | " + " | ".join(SEV_ORDER) + " |",
                 "|" + "---|" * (len(SEV_ORDER) + 1),
@@ -257,7 +262,7 @@ class ReportGenerator:
         data = {
             "tool": TOOL,
             "schema": "horuseye.report/3",
-            "generated": datetime.now().isoformat(),
+            "generated": self.generated_iso,
             "author": "Omar Tamer",
             "domain": self.domain_data.get("domain", ""),
             "dc_ip": self.domain_data.get("dc_ip", ""),

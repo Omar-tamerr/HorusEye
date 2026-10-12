@@ -238,11 +238,25 @@ def main():
         console.print(f"\n[bold red]❌ {e}[/bold red]")
         if os.environ.get("HORUSEYE_DEBUG"):
             import traceback; traceback.print_exc()
+        from horuseye.core.exit_codes import ERROR
+        sys.exit(ERROR)
 
 
 def _has_input(args) -> bool:
     """True when at least one AD data source was supplied."""
     return any([args.bloodhound, args.ldap, args.cme, args.nxc, args.certipy, args.manual])
+
+
+def _fixed_timestamp():
+    """Honor SOURCE_DATE_EPOCH (reproducible-builds convention) so reports are
+    byte-identical for the same input. Returns None for a normal (now) run."""
+    epoch = os.environ.get("SOURCE_DATE_EPOCH")
+    if not epoch:
+        return None
+    try:
+        return datetime.utcfromtimestamp(int(epoch)).strftime("%Y-%m-%d %H:%M:%S")
+    except (ValueError, OverflowError, OSError):
+        return None
 
 
 def _parse_hostport(s: str, default_port: int = 31337):
@@ -463,7 +477,7 @@ def run_main_analysis(args, config, claude_key):
     team.broadcast({"event": "findings", "count": len(scored), "critical": crit})
 
     # ── Print results ────────────────────────────────────────────────────
-    reporter = ReportGenerator(scored, domain_data)
+    reporter = ReportGenerator(scored, domain_data, generated_at=_fixed_timestamp())
     reporter.print_cli_report(args.severity)
 
     # ── Timeline ─────────────────────────────────────────────────────────
@@ -539,10 +553,17 @@ def run_main_analysis(args, config, claude_key):
     # ── CI gate ──────────────────────────────────────────────────────────────
     if args.fail_on:
         from horuseye.core.diff import fail_level_exceeded
+        from horuseye.core.exit_codes import FINDINGS, INCOMPLETE, OK, assessment_is_incomplete
+        if assessment_is_incomplete(domain_data):
+            console.print("[bold red]✖ assessment incomplete — a source was given but no "
+                          "usable objects were parsed; not trusting a clean result "
+                          "(exit 3).[/bold red]")
+            return INCOMPLETE
         if fail_level_exceeded(scored, args.fail_on):
             console.print(f"[bold red]✖ findings at or above {args.fail_on.upper()} "
                           f"— failing (exit 2).[/bold red]")
-            return 2
+            return FINDINGS
+        return OK
     return 0
 
 
