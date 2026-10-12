@@ -203,6 +203,8 @@ def main():
     g8.add_argument("--report",      metavar="FILE")
     g8.add_argument("--json",        metavar="FILE")
     g8.add_argument("--markdown",    metavar="FILE", help="Export Markdown report with Mermaid attack-path diagrams")
+    g8.add_argument("--diff",        metavar="OLD.json", help="Compare against a previous JSON report (retest: new / fixed / unchanged)")
+    g8.add_argument("--fail-on",     metavar="LEVEL", choices=["critical","high","medium","low"], help="Exit non-zero if a finding at/above LEVEL exists (for CI gates)")
     g8.add_argument("--severity",    choices=["critical","high","all"], default="all")
     g8.add_argument("--config",      action="store_true")
     g8.add_argument("--check-deps",  action="store_true", help="Check external toolchain (hashcat, nxc, impacket, certipy, ...) on PATH")
@@ -224,7 +226,9 @@ def main():
     claude_key = args.claude_key or config.get("claude_key")
 
     try:
-        _route(args, config, claude_key)
+        exit_code = _route(args, config, claude_key)
+        if exit_code:
+            sys.exit(exit_code)
     except KeyboardInterrupt:
         console.print("\n[bold yellow]⚠️  Interrupted[/bold yellow]")
     except Exception as e:
@@ -329,7 +333,7 @@ def _route(args, config, claude_key):
     if not args.domain:
         console.print("[red]❌ --domain required[/red]"); return
 
-    run_main_analysis(args, config, claude_key)
+    return run_main_analysis(args, config, claude_key)
 
 
 _EDGE_STYLE = {
@@ -506,8 +510,44 @@ def run_main_analysis(args, config, claude_key):
         reporter.export_markdown(args.markdown)
         console.print(f"[green]📝 Markdown → [cyan]{args.markdown}[/cyan][/green]")
 
+    # ── Retest diff ────────────────────────────────────────────────────────
+    if args.diff:
+        render_diff(args.diff, scored)
+
     # ── Always print creds summary ────────────────────────────────────────
     creds_mgr.print_summary()
+
+    # ── CI gate ──────────────────────────────────────────────────────────────
+    if args.fail_on:
+        from horuseye.core.diff import fail_level_exceeded
+        if fail_level_exceeded(scored, args.fail_on):
+            console.print(f"[bold red]✖ findings at or above {args.fail_on.upper()} "
+                          f"— failing (exit 2).[/bold red]")
+            return 2
+    return 0
+
+
+def render_diff(old_path, current):
+    """Print a retest comparison against a previous JSON report."""
+    from horuseye.core.diff import load_previous, diff_findings
+    console.print(Rule("[bold red][ 𓂀 RETEST DIFF ][/bold red]"))
+    console.print()
+    try:
+        previous = load_previous(old_path)
+    except Exception as e:
+        console.print(f"  [red]Could not read {old_path}: {e}[/red]\n")
+        return
+    d = diff_findings(previous, current)
+    console.print(f"  [bold green]✓ Fixed:[/bold green] {len(d['fixed'])}   "
+                  f"[bold red]✚ New:[/bold red] {len(d['new'])}   "
+                  f"[dim]= Unchanged: {len(d['unchanged'])}[/dim]\n")
+    for f in d["new"]:
+        console.print(f"  [bold red]✚ NEW[/bold red]  [{(f.get('severity') or '').upper()}] "
+                      f"{f.get('title','')}")
+    for f in d["fixed"]:
+        console.print(f"  [bold green]✓ FIXED[/bold green]  [{(f.get('severity') or '').upper()}] "
+                      f"{f.get('title','')}")
+    console.print()
 
 
 if __name__ == "__main__":
