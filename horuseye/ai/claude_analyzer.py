@@ -45,13 +45,17 @@ class ClaudeAnalyzer:
             return findings
 
         subset = findings[:20 if self.deep else 10]
-        secrets: Dict[str, str] = {}
+        from horuseye.ai.redaction import Redactor, terms_from
+        redactor = Redactor(terms_from(domain_data, subset)) if self.redact else None
+
+        def mask(text):
+            return redactor.redact(text) if redactor else text
+
         lines = []
         for f in subset:
-            affected = self._redact_value(f.get("affected", ""), secrets, domain_data)
             lines.append(f'- id={f.get("id","")} [{f.get("severity","")}] '
-                         f'{f.get("type","")} on {affected}')
-        domain = self._redact_value(domain_data.get("domain", ""), secrets, domain_data)
+                         f'{f.get("type","")} on {mask(f.get("affected", ""))}')
+        domain = mask(domain_data.get("domain", ""))
         prompt = (
             f"You are a senior red-team operator analysing Active Directory attack "
             f"paths for domain {domain}. For each finding below, write one concise "
@@ -87,49 +91,22 @@ class ClaudeAnalyzer:
             self._warn("AI response could not be parsed as JSON; no narratives added.")
             return findings
 
-        reverse = {v: k for k, v in secrets.items()}
-        by_id = {n.get("id"): n.get("narrative", "") for n in narratives if isinstance(n, dict)}
+        # Validate structured output before using any of it. The AI may only
+        # ever populate `ai_narrative` — it can never overwrite verified facts
+        # (severity, evidence, remediation, commands).
+        valid_ids = {f.get("id") for f in findings}
+        by_id = {}
+        for n in narratives:
+            if not isinstance(n, dict):
+                continue
+            fid, narr = n.get("id"), n.get("narrative")
+            if fid in valid_ids and isinstance(narr, str) and narr.strip():
+                by_id[fid] = narr.strip()[:500]
         for f in findings:
             narr = by_id.get(f.get("id"))
             if narr:
-                f["ai_narrative"] = self._restore(narr, reverse)
+                f["ai_narrative"] = redactor.restore(narr) if redactor else narr
         return findings
-
-    # ── Redaction ──────────────────────────────────────────────────────────────
-    def _redact_value(self, value: str, secrets: Dict[str, str], domain_data: Dict) -> str:
-        """Replace sensitive identifiers with stable placeholders. No-op unless
-        --ai-redact is set. Mutates ``secrets`` (real → placeholder)."""
-        if not self.redact or not value:
-            return value
-        out = value
-        for token in self._tokens(value, domain_data):
-            ph = secrets.get(token)
-            if ph is None:
-                ph = f"ENTITY{len(secrets) + 1}"
-                secrets[token] = ph
-            out = re.sub(re.escape(token), ph, out, flags=re.IGNORECASE)
-        return out
-
-    @staticmethod
-    def _tokens(value: str, domain_data: Dict) -> List[str]:
-        """Sensitive substrings to mask: the domain, and each identifier segment
-        (longest first so 'CORP.LOCAL' is masked before 'CORP')."""
-        toks = set()
-        dom = (domain_data.get("domain") or "").strip()
-        if dom:
-            toks.add(dom)
-            toks.add(dom.split(".")[0])
-        for part in re.split(r"[\\@/→,\s]+", value):
-            part = part.strip()
-            if len(part) > 2 and not part.isdigit():
-                toks.add(part)
-        return sorted(toks, key=len, reverse=True)
-
-    @staticmethod
-    def _restore(text: str, reverse: Dict[str, str]) -> str:
-        for placeholder, real in reverse.items():
-            text = text.replace(placeholder, real)
-        return text
 
     # ── Helpers ────────────────────────────────────────────────────────────────
     @staticmethod

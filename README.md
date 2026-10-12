@@ -666,7 +666,15 @@ python3 horuseye.py --bloodhound ./bh/ --domain corp.local --deep
 python3 horuseye.py --bloodhound ./bh/ --domain corp.local --no-ai
 ```
 
-AI analysis is optional. All detection, cracking, and exploitation features work without an API key.
+AI analysis is optional. All detection, scoring, graphing, and reporting work without an API key.
+
+**What is sent, and when.** AI runs only when a key is configured and `--no-ai` is not set. One request is made per run, containing a compact list of findings (id, severity, type, and the affected principal) for the top 10 (or 20 with `--deep`) — never raw credentials, hashes, or file contents. The model may only populate each finding's `ai_narrative`; its output is validated (correct id, string, length-capped) and can never overwrite a verified field (severity, evidence, remediation, commands).
+
+**Keeping client data local (`--ai-redact`).** With this flag, every sensitive identifier — email addresses, IPv4 addresses, the domain, and all principal/computer/host names — is replaced with a stable placeholder *before* the request leaves the machine, and restored in the returned narrative locally. Use it on engagements where client names must not reach a third-party API.
+
+```bash
+horuseye --bloodhound ./bh/ --domain corp.local --deep --ai-redact
+```
 
 ---
 
