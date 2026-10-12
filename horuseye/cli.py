@@ -365,6 +365,11 @@ def run_main_analysis(args, config, claude_key):
     findings = AttackDetector(domain_data).detect_all()
     scored   = PathScorer().score(findings)
 
+    # Attach remediation / MITRE ATT&CK / detection guidance to every finding
+    # so the report serves defenders as well as operators.
+    from horuseye.core.knowledge import enrich
+    enrich(scored)
+
     crit = len([f for f in scored if f.get("severity") == "CRITICAL"])
     high = len([f for f in scored if f.get("severity") == "HIGH"])
     console.print(f"\n  [bold red]𓂀 {len(scored)} paths — {crit} CRITICAL, {high} HIGH[/bold red]\n")

@@ -58,6 +58,8 @@ class BloodHoundParser:
             "trusts":      [],
             "spns":        [],   # kerberoastable users
             "asrep_users": [],   # AS-REP roastable users
+            "local_admins":       [],   # {principal, computer} — AdminTo edges
+            "delegation_targets": [],   # {principal, target} — AllowedToDelegate
         }
 
         raw_objects: List[Dict] = []
@@ -127,14 +129,35 @@ class BloodHoundParser:
                 })
 
                 # ── Sessions attached to this computer ───────────────────
-                sessions = obj.get("Sessions", {}) or {}
-                for s in sessions.get("Results", []) or []:
-                    user_sid = s.get("UserSID") or s.get("UserId")
-                    result["sessions"].append({
-                        "UserName":     sid_to_name.get(user_sid, user_sid),
-                        "ComputerName": name,
-                        "source":       "bloodhound",
-                    })
+                # SharpHound reports three session sources; merge and dedupe.
+                seen_sessions = set()
+                for skey in ("Sessions", "PrivilegedSessions", "RegistrySessions"):
+                    block = obj.get(skey) or {}
+                    for s in (block.get("Results") or []) if isinstance(block, dict) else []:
+                        user_sid = s.get("UserSID") or s.get("UserId")
+                        uname = sid_to_name.get(user_sid, user_sid)
+                        if not uname or uname in seen_sessions:
+                            continue
+                        seen_sessions.add(uname)
+                        result["sessions"].append({
+                            "UserName":     uname,
+                            "ComputerName": name,
+                            "source":       "bloodhound",
+                        })
+
+                # ── Local administrators (AdminTo edges) ────────────────
+                for principal in self._local_admin_names(obj, sid_to_name):
+                    result["local_admins"].append({"principal": principal, "computer": name})
+
+            # ── Constrained delegation targets (users and computers) ─────
+            if kind in ("users", "computers"):
+                for tgt in obj.get("AllowedToDelegate") or []:
+                    tid = tgt.get("ObjectIdentifier") if isinstance(tgt, dict) else tgt
+                    if tid:
+                        result["delegation_targets"].append({
+                            "principal": name,
+                            "target":    sid_to_name.get(tid, tid),
+                        })
 
             elif kind == "domains":
                 for trust in obj.get("Trusts", []) or []:
@@ -254,6 +277,30 @@ class BloodHoundParser:
         if value is None:
             return default
         return bool(value)
+
+    def _local_admin_names(self, obj: Dict, sid_to_name: Dict) -> List[str]:
+        """Members of a computer's local Administrators group.
+
+        Legacy SharpHound: ``LocalAdmins.Results``. SharpHound CE:
+        ``LocalGroups`` entry whose SID ends in -544 (the builtin Administrators group).
+        """
+        results = []
+        legacy = obj.get("LocalAdmins")
+        if isinstance(legacy, dict):
+            results.extend(legacy.get("Results") or [])
+        for grp in obj.get("LocalGroups") or []:
+            if not isinstance(grp, dict):
+                continue
+            gid = str(grp.get("ObjectIdentifier", ""))
+            gname = str(grp.get("Name", "")).upper()
+            if gid.endswith("-544") or gname.startswith("ADMINISTRATORS@"):
+                results.extend(grp.get("Results") or [])
+        names = []
+        for r in results:
+            sid = r.get("ObjectIdentifier") if isinstance(r, dict) else r
+            if sid:
+                names.append(sid_to_name.get(sid, sid))
+        return names
 
     def _member_names(self, obj: Dict, sid_to_name: Dict) -> List[str]:
         members = obj.get("Members", []) or []

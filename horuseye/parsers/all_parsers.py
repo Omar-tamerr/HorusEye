@@ -25,6 +25,8 @@ def parse_all_sources(args, console, animated_task):
         "nxc_data":     {},
         "spns":         [],   # kerberoastable users
         "asrep_users":  [],   # AS-REP roastable users
+        "local_admins": [],   # {principal, computer}
+        "delegation_targets": [],  # {principal, target}
         "raw_sources":  [],
     }
 
@@ -34,7 +36,8 @@ def parse_all_sources(args, console, animated_task):
     if getattr(args, "bloodhound", None):
         animated_task("Parsing BloodHound", ["Users", "Groups", "ACLs", "Sessions", "Graph"], "cyan")
         d = BloodHoundParser(args.bloodhound).parse()
-        for k in ["users", "groups", "computers", "acls", "sessions", "gpos", "trusts"]:
+        for k in ["users", "groups", "computers", "acls", "sessions", "gpos", "trusts",
+                  "local_admins", "delegation_targets"]:
             domain_data[k].extend(d.get(k, []))
         domain_data["spns"].extend(d.get("spns", []))
         domain_data["asrep_users"].extend(d.get("asrep_users", []))

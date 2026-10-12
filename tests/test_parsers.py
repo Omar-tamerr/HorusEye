@@ -54,3 +54,54 @@ def test_empty_directory_returns_empty_sets(tmp_path):
 def test_missing_path_does_not_crash():
     out = BloodHoundParser("/no/such/path").parse()
     assert out["users"] == []
+
+
+def _computers(tmp_path, computer):
+    _write(tmp_path, "users.json", {"meta": {"type": "users"}, "data": [
+        {"ObjectIdentifier": "S-1-5-21-1-1-1-1107", "Properties": {"name": "HELPDESK@CORP.LOCAL"}},
+        {"ObjectIdentifier": "S-1-5-21-1-1-1-500", "Properties": {"name": "ADMINISTRATOR@CORP.LOCAL"}},
+    ]})
+    _write(tmp_path, "computers.json", {"meta": {"type": "computers"}, "data": [computer]})
+    return BloodHoundParser(str(tmp_path)).parse()
+
+
+def test_local_admins_legacy_format(tmp_path):
+    out = _computers(tmp_path, {
+        "ObjectIdentifier": "S-1-5-21-1-1-1-2000", "Properties": {"name": "WS01.CORP.LOCAL"},
+        "LocalAdmins": {"Results": [{"ObjectIdentifier": "S-1-5-21-1-1-1-1107", "ObjectType": "User"}]},
+    })
+    assert {"principal": "HELPDESK@CORP.LOCAL", "computer": "WS01.CORP.LOCAL"} in out["local_admins"]
+
+
+def test_local_admins_ce_format(tmp_path):
+    out = _computers(tmp_path, {
+        "ObjectIdentifier": "S-1-5-21-1-1-1-2001", "Properties": {"name": "WS02.CORP.LOCAL"},
+        "LocalGroups": [
+            {"ObjectIdentifier": "S-1-5-21-9-9-9-544", "Name": "ADMINISTRATORS@WS02.CORP.LOCAL",
+             "Results": [{"ObjectIdentifier": "S-1-5-21-1-1-1-1107", "ObjectType": "User"}]},
+            {"ObjectIdentifier": "S-1-5-21-9-9-9-555", "Name": "REMOTE DESKTOP USERS@WS02.CORP.LOCAL",
+             "Results": [{"ObjectIdentifier": "S-1-5-21-1-1-1-500", "ObjectType": "User"}]},
+        ],
+    })
+    admins = [a["principal"] for a in out["local_admins"]]
+    assert admins == ["HELPDESK@CORP.LOCAL"]   # RDP group is not admin
+
+
+def test_session_sources_merged_and_deduped(tmp_path):
+    sess = {"Results": [{"UserSID": "S-1-5-21-1-1-1-500"}]}
+    out = _computers(tmp_path, {
+        "ObjectIdentifier": "S-1-5-21-1-1-1-2002", "Properties": {"name": "SRV01.CORP.LOCAL"},
+        "Sessions": sess, "PrivilegedSessions": sess, "RegistrySessions": sess,
+    })
+    assert len(out["sessions"]) == 1
+    assert out["sessions"][0]["UserName"] == "ADMINISTRATOR@CORP.LOCAL"
+
+
+def test_delegation_targets_extracted(tmp_path):
+    out = _computers(tmp_path, {
+        "ObjectIdentifier": "S-1-5-21-1-1-1-2003",
+        "Properties": {"name": "APP01.CORP.LOCAL", "trustedtoauth": True},
+        "AllowedToDelegate": [{"ObjectIdentifier": "S-1-5-21-1-1-1-2002", "ObjectType": "Computer"}],
+    })
+    assert out["delegation_targets"] == [
+        {"principal": "APP01.CORP.LOCAL", "target": "S-1-5-21-1-1-1-2002"}]

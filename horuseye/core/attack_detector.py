@@ -21,7 +21,10 @@ references BloodHound, PingCastle and the tool's own README already surface.
 """
 from __future__ import annotations
 
+import hashlib
 from typing import Dict, List, Set
+
+from horuseye.core.principals import PrincipalIndex, norm
 
 
 # ── ACL right classes ──────────────────────────────────────────────────────
@@ -50,14 +53,11 @@ _ABUSE_RIGHTS = {
     "writeaccountrestrictions": "account-restriction write",
 }
 
-# Group names that confer domain-takeover-equivalent privilege.
-_TIER0_GROUPS = (
-    "DOMAIN ADMINS", "ENTERPRISE ADMINS", "SCHEMA ADMINS", "ADMINISTRATORS",
-    "DOMAIN CONTROLLERS", "ENTERPRISE DOMAIN CONTROLLERS", "ACCOUNT OPERATORS",
-    "BACKUP OPERATORS", "PRINT OPERATORS", "SERVER OPERATORS",
-    "GROUP POLICY CREATOR OWNERS", "DNSADMINS", "KEY ADMINS",
-    "ENTERPRISE KEY ADMINS", "CERT PUBLISHERS",
-)
+# More targets than this for one (principal, right) pair are reported as a
+# single aggregated finding instead of one finding per object.
+ACL_AGGREGATE_THRESHOLD = 5
+# A non-Tier-0 principal that is local admin on at least this many hosts.
+BROAD_ADMIN_THRESHOLD = 3
 
 
 class AttackDetector:
@@ -77,7 +77,8 @@ class AttackDetector:
         self.data = domain_data or {}
         self.domain = self.data.get("domain", "") or ""
         self.dc_ip = self.data.get("dc_ip") or self.data.get("dc") or ""
-        self._privileged = self._compute_privileged_principals()
+        self.idx = PrincipalIndex(self.data)
+        self._privileged = self.idx.privileged
 
     # ── Public entry point ──────────────────────────────────────────────────
     def detect_all(self) -> List[Dict]:
@@ -102,31 +103,19 @@ class AttackDetector:
             except Exception:
                 # A malformed source must never take down the whole run.
                 continue
+        for f in findings:
+            f.setdefault("id", self._finding_id(f))
         return findings
 
+    @staticmethod
+    def _finding_id(f: Dict) -> str:
+        """Stable id from type + affected, so the same issue matches across runs."""
+        key = f"{f.get('type', '')}|{f.get('affected', '')}".encode("utf-8")
+        return hashlib.sha1(key).hexdigest()[:12]
+
     # ── Privilege model ──────────────────────────────────────────────────────
-    def _compute_privileged_principals(self) -> Set[str]:
-        """Build a case-insensitive set of principals that are Tier-0 /
-        admin-equivalent, used to escalate finding severity."""
-        priv: Set[str] = set()
-
-        for u in self.data.get("users", []):
-            if u.get("admincount"):
-                priv.add(self._norm(u.get("name", "")))
-
-        for g in self.data.get("groups", []):
-            gname = (g.get("name", "") or "").upper()
-            is_tier0 = g.get("admincount") or any(t in gname for t in _TIER0_GROUPS)
-            if is_tier0:
-                priv.add(self._norm(g.get("name", "")))
-                for member in g.get("members", []) or []:
-                    priv.add(self._norm(member))
-
-        priv.discard("")
-        return priv
-
     def _is_privileged(self, name: str) -> bool:
-        return self._norm(name) in self._privileged
+        return self.idx.is_privileged(name)
 
     # ── 1. Kerberoasting ──────────────────────────────────────────────────────
     def _detect_kerberoasting(self) -> List[Dict]:
@@ -200,16 +189,21 @@ class AttackDetector:
         for ace in self.data.get("acls", []):
             right = self._right(ace)
             if right in _DCSYNC_RIGHTS:
-                target = (ace.get("target", "") or "").upper()
-                # Replication rights only matter on the domain object itself.
-                if target and self.domain and self.domain.upper() not in target:
-                    # still record — some exports name the target differently
-                    pass
                 principal = ace.get("principal", "")
                 by_principal.setdefault(principal, set()).add(right)
 
         for principal, rights in by_principal.items():
             if not principal:
+                continue
+            # Replicating secrets needs Get-Changes AND Get-Changes-All (or a
+            # combined DCSync / All grant). Either right alone is not enough.
+            capable = ("dcsync" in rights or "all" in rights
+                       or {"getchanges", "getchangesall"} <= rights)
+            if not capable:
+                continue
+            # Domain Controllers, Domain Admins etc. replicate by design.
+            if (self.idx.is_expected_replicator(principal)
+                    or self.idx.classify(principal) == "noise"):
                 continue
             out.append({
                 "type": "DCSYNC",
@@ -236,35 +230,68 @@ class AttackDetector:
 
     # ── 4. ACL Abuse ──────────────────────────────────────────────────────────
     def _detect_acl_abuse(self) -> List[Dict]:
-        out = []
+        gpo_names = {(g.get("name", "") or "").upper() for g in self.data.get("gpos", [])}
+        grouped: Dict = {}
+        seen = set()
         for ace in self.data.get("acls", []):
             right = self._right(ace)
             if right not in _ABUSE_RIGHTS:
                 continue
             principal = ace.get("principal", "")
             target = ace.get("target", "")
-            if not principal or not target or principal == target:
+            if not principal or not target or norm(principal) == norm(target):
                 continue
-            # Self-referential or Everyone/Authenticated-Users noise is still
-            # reported but a takeover of a Tier-0 target is the CRITICAL case.
-            target_priv = self._is_privileged(target) or self._is_domain_object(target)
-            out.append({
-                "type": "ACL_ABUSE",
-                "title": f"{_ABUSE_RIGHTS[right].capitalize()}: "
-                         f"{principal} → {target}",
-                "affected": f"{principal} → {target}",
-                "severity": "CRITICAL" if target_priv else "HIGH",
-                "description": (
-                    f"{principal} has {_ABUSE_RIGHTS[right]} over {target}. "
-                    + ("The target is Tier-0 / the domain object, so this edge is a "
-                       "direct takeover primitive." if target_priv else
-                       "Abusable to pivot toward higher-value objects.")
-                ),
-                "commands": self._acl_commands(right, target),
-                "references": [
-                    "https://bloodhound.readthedocs.io/en/latest/data-analysis/edges.html",
-                ],
-            })
+            if target.upper() in gpo_names:
+                continue  # reported once, as GPO_ABUSE
+            if self.idx.classify(principal) in ("noise", "tier0"):
+                continue  # expected rights, not an escalation
+            if (principal, right, target) in seen:
+                continue  # inherited + explicit duplicates
+            seen.add((principal, right, target))
+            grouped.setdefault((principal, right), []).append(target)
+
+        out = []
+        ref = ["https://bloodhound.readthedocs.io/en/latest/data-analysis/edges.html"]
+        for (principal, right), targets in grouped.items():
+            label = _ABUSE_RIGHTS[right]
+            broad = ("Granted to a broad group, so every domain user inherits it. "
+                     if self.idx.classify(principal) == "broad" else "")
+            if len(targets) > ACL_AGGREGATE_THRESHOLD:
+                tier0 = [t for t in targets if self.idx.is_tier0_target(t)]
+                sample = ", ".join((tier0 or targets)[:3])
+                out.append({
+                    "type": "ACL_ABUSE",
+                    "title": f"{label.capitalize()}: {principal} → {len(targets)} objects",
+                    "affected": f"{principal} → {len(targets)} objects",
+                    "severity": "CRITICAL" if tier0 else "HIGH",
+                    "description": (
+                        broad + f"{principal} has {label} over {len(targets)} objects "
+                        f"(e.g. {sample})"
+                        + (f", including {len(tier0)} Tier-0 object(s)." if tier0 else ".")
+                        + " This pattern usually comes from an over-broad delegation "
+                        "on an OU or container."
+                    ),
+                    "targets": targets[:100],
+                    "commands": self._acl_commands(right, (tier0 or targets)[0]),
+                    "references": ref,
+                })
+                continue
+            for target in targets:
+                tier0 = self.idx.is_tier0_target(target)
+                out.append({
+                    "type": "ACL_ABUSE",
+                    "title": f"{label.capitalize()}: {principal} → {target}",
+                    "affected": f"{principal} → {target}",
+                    "severity": "CRITICAL" if tier0 else "HIGH",
+                    "description": (
+                        broad + f"{principal} has {label} over {target}. "
+                        + ("The target is Tier-0 / the domain object, so this right "
+                           "amounts to domain control." if tier0 else
+                           "Abusable to pivot toward higher-value objects.")
+                    ),
+                    "commands": self._acl_commands(right, target),
+                    "references": ref,
+                })
         return out
 
     def _acl_commands(self, right: str, target: str) -> List[str]:
@@ -286,6 +313,7 @@ class AttackDetector:
     def _detect_gpo_abuse(self) -> List[Dict]:
         out = []
         gpo_names = {(g.get("name", "") or "").upper() for g in self.data.get("gpos", [])}
+        seen = set()
         for ace in self.data.get("acls", []):
             right = self._right(ace)
             if right not in ("genericall", "genericwrite", "writedacl", "writeowner", "owns"):
@@ -294,6 +322,12 @@ class AttackDetector:
             if (target or "").upper() not in gpo_names:
                 continue
             principal = ace.get("principal", "")
+            # Tier-0 principals editing GPOs is expected, not an escalation.
+            if self.idx.classify(principal) in ("noise", "tier0"):
+                continue
+            if (principal, target) in seen:
+                continue
+            seen.add((principal, target))
             out.append({
                 "type": "GPO_ABUSE",
                 "title": f"Writable GPO: {principal} → {target}",
@@ -348,11 +382,15 @@ class AttackDetector:
     # ── 7. Constrained Delegation ──────────────────────────────────────────────
     def _detect_constrained_deleg(self) -> List[Dict]:
         out = []
+        targets_by: Dict[str, List[str]] = {}
+        for d in self.data.get("delegation_targets", []) or []:
+            targets_by.setdefault(d.get("principal", ""), []).append(d.get("target", ""))
         for coll, kind in (("computers", "computer"), ("users", "account")):
             for obj in self.data.get(coll, []):
                 if not obj.get("trustedtoauth"):
                     continue
                 name = obj.get("name", "")
+                targets = sorted(t for t in targets_by.get(name, []) if t)
                 out.append({
                     "type": "CONSTRAINED_DELEGATION",
                     "title": f"Constrained delegation (protocol transition): {name}",
@@ -363,7 +401,11 @@ class AttackDetector:
                         "protocol transition (TrustedToAuthForDelegation). If you "
                         "control it, you can impersonate any user to its allowed "
                         "services via S4U2Self + S4U2Proxy."
+                        + (f" Allowed delegation targets: {', '.join(targets[:10])}"
+                           + (f" (+{len(targets) - 10} more)." if len(targets) > 10 else ".")
+                           if targets else "")
                     ),
+                    "targets": targets,
                     "commands": [
                         f"impacket-getST -spn SERVICE/TARGET -impersonate Administrator "
                         f"{self.domain}/{self._short(name)}:PASS -dc-ip {self.dc_ip or 'DC_IP'}",
@@ -400,6 +442,40 @@ class AttackDetector:
                 ],
                 "references": [
                     "https://attack.mitre.org/techniques/T1550/002/",
+                ],
+            })
+
+        # Over-broad local admin rights from BloodHound (a classic AD hygiene
+        # finding: one non-Tier-0 group administering a whole fleet).
+        hosts_by_principal: Dict[str, Set[str]] = {}
+        for la in self.data.get("local_admins", []) or []:
+            p, host = la.get("principal", ""), la.get("computer", "")
+            if p and host and self.idx.classify(p) not in ("noise", "tier0"):
+                hosts_by_principal.setdefault(p, set()).add(host)
+        for principal, hosts in sorted(hosts_by_principal.items()):
+            if len(hosts) < BROAD_ADMIN_THRESHOLD:
+                continue
+            broad = self.idx.classify(principal) == "broad"
+            sample = ", ".join(sorted(hosts)[:5])
+            out.append({
+                "type": "PASS_THE_HASH",
+                "title": f"Broad local admin: {principal} on {len(hosts)} hosts",
+                "affected": principal,
+                "severity": "HIGH",
+                "description": (
+                    ("This is a broad group, so every domain user is local admin on "
+                     "these hosts. " if broad else "")
+                    + f"{principal} is a local administrator on {len(hosts)} hosts "
+                    f"(e.g. {sample}). Admin rights this wide let one compromised "
+                    "account reach credentials cached across the whole fleet."
+                ),
+                "targets": sorted(hosts)[:100],
+                "commands": [
+                    "# confirm on a sample host (defender check):",
+                    "Get-LocalGroupMember -Group Administrators",
+                ],
+                "references": [
+                    "https://learn.microsoft.com/windows-server/identity/laps/laps-overview",
                 ],
             })
         return out
@@ -479,11 +555,17 @@ class AttackDetector:
     # ── 11. Privileged Sessions ──────────────────────────────────────────────
     def _detect_privileged_sessions(self) -> List[Dict]:
         out = []
+        admins_by_host: Dict[str, List[str]] = {}
+        for la in self.data.get("local_admins", []) or []:
+            p = la.get("principal", "")
+            if p and self.idx.classify(p) not in ("noise", "tier0"):
+                admins_by_host.setdefault(la.get("computer", ""), []).append(p)
         for s in self.data.get("sessions", []):
             user = s.get("UserName", "") or s.get("user", "")
             host = s.get("ComputerName", "") or s.get("ip", "")
             if not user or not self._is_privileged(user):
                 continue
+            exposed = sorted(set(admins_by_host.get(host, [])))
             out.append({
                 "type": "PRIVILEGED_SESSION",
                 "title": f"Privileged session: {user} on {host}",
@@ -492,6 +574,8 @@ class AttackDetector:
                 "description": (
                     f"Tier-0 principal {user} has a session on {host}. Local admin on "
                     f"{host} means that credential can be dumped from memory and reused."
+                    + (f" Non-Tier-0 principals with local admin there: "
+                       f"{', '.join(exposed[:10])}." if exposed else "")
                 ),
                 "commands": [
                     f"# with local admin on {host}, dump LSASS and extract {user}'s secret",
