@@ -202,6 +202,7 @@ def main():
     g8.add_argument("--deep",        action="store_true")
     g8.add_argument("--report",      metavar="FILE")
     g8.add_argument("--json",        metavar="FILE")
+    g8.add_argument("--markdown",    metavar="FILE", help="Export Markdown report with Mermaid attack-path diagrams")
     g8.add_argument("--severity",    choices=["critical","high","all"], default="all")
     g8.add_argument("--config",      action="store_true")
     g8.add_argument("--check-deps",  action="store_true", help="Check external toolchain (hashcat, nxc, impacket, certipy, ...) on PATH")
@@ -501,6 +502,9 @@ def run_main_analysis(args, config, claude_key):
     if args.json:
         reporter.export_json(args.json)
         console.print(f"[green]📄 JSON → [cyan]{args.json}[/cyan][/green]")
+    if args.markdown:
+        reporter.export_markdown(args.markdown)
+        console.print(f"[green]📝 Markdown → [cyan]{args.markdown}[/cyan][/green]")
 
     # ── Always print creds summary ────────────────────────────────────────
     creds_mgr.print_summary()
