@@ -186,11 +186,14 @@ class AttackDetector:
         # Group replication rights by principal so GetChanges + GetChangesAll
         # on the domain head collapse into a single DCSync finding.
         by_principal: Dict[str, Set[str]] = {}
+        aces_by_principal: Dict[str, list] = {}
         for ace in self.data.get("acls", []):
             right = self._right(ace)
             if right in _DCSYNC_RIGHTS:
                 principal = ace.get("principal", "")
                 by_principal.setdefault(principal, set()).add(right)
+                aces_by_principal.setdefault(principal, []).append(
+                    (right, ace.get("source_file", "")))
 
         for principal, rights in by_principal.items():
             if not principal:
@@ -216,8 +219,8 @@ class AttackDetector:
                     "secrets from the DC — including the krbtgt hash — without "
                     "running code on a Domain Controller."
                 ),
-                "evidence": [ev("acl", f"{principal} → {self.domain or 'domain'}", r)
-                             for r in sorted(rights)],
+                "evidence": [ev("acl", f"{principal} → {self.domain or 'domain'}", r, file=fn)
+                             for r, fn in sorted(aces_by_principal.get(principal, []))],
                 "commands": [
                     f"impacket-secretsdump {self.domain}/{self._short(principal)}@"
                     f"{self.dc_ip or 'DC_IP'} -just-dc",
@@ -234,6 +237,7 @@ class AttackDetector:
     def _detect_acl_abuse(self) -> List[Dict]:
         gpo_names = {(g.get("name", "") or "").upper() for g in self.data.get("gpos", [])}
         grouped: Dict = {}
+        ace_file: Dict = {}
         seen = set()
         for ace in self.data.get("acls", []):
             right = self._right(ace)
@@ -251,6 +255,7 @@ class AttackDetector:
                 continue  # inherited + explicit duplicates
             seen.add((principal, right, target))
             grouped.setdefault((principal, right), []).append(target)
+            ace_file[(principal, right, target)] = ace.get("source_file", "")
 
         out = []
         ref = ["https://bloodhound.readthedocs.io/en/latest/data-analysis/edges.html"]
@@ -261,7 +266,9 @@ class AttackDetector:
                      if self.idx.classify(principal) == "broad" else "")
             # Evidence always retains every affected object, even when the
             # presentation is aggregated.
-            evidence = [ev("acl", f"{principal} → {t}", right) for t in targets[:EVIDENCE_CAP]]
+            evidence = [ev("acl", f"{principal} → {t}", right,
+                           file=ace_file.get((principal, right, t), ""))
+                        for t in targets[:EVIDENCE_CAP]]
             if len(targets) > ACL_AGGREGATE_THRESHOLD:
                 tier0 = [t for t in targets if self.idx.is_tier0_target(t)]
                 sample = ", ".join((tier0 or targets)[:3])
@@ -301,7 +308,8 @@ class AttackDetector:
                            "amounts to domain control." if tier0 else
                            "Abusable to pivot toward higher-value objects.")
                     ),
-                    "evidence": [ev("acl", f"{principal} → {target}", right)],
+                    "evidence": [ev("acl", f"{principal} → {target}", right,
+                                    file=ace_file.get((principal, right, target), ""))],
                     "commands": self._acl_commands(right, target),
                     "references": ref,
                 })
@@ -352,7 +360,8 @@ class AttackDetector:
                     "attacker-controlled policy (scheduled task, immediate task, "
                     "local-admin membership) to every linked computer or user."
                 ),
-                "evidence": [ev("acl", f"{principal} → {target}", right)],
+                "evidence": [ev("acl", f"{principal} → {target}", right,
+                                file=ace.get("source_file", ""))],
                 "commands": [
                     f"# enumerate links, then abuse with pyGPOAbuse / SharpGPOAbuse",
                     f"pygpoabuse.py {self.domain}/USER:PASS -gpo-id '<GUID>' -command 'whoami'",

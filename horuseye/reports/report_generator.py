@@ -266,6 +266,7 @@ class ReportGenerator:
                 "by_severity": self._counts(),
                 "mitre": self._mitre(),
             },
+            "parse_report": self.domain_data.get("parse_report", {}),
             "attack_paths": self.attack_paths,
             "findings": self.findings,
         }

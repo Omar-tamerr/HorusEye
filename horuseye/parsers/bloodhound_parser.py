@@ -62,18 +62,19 @@ class BloodHoundParser:
             "delegation_targets": [],   # {principal, target} — AllowedToDelegate
         }
 
-        raw_objects: List[Dict] = []
+        raw_objects: List[tuple] = []
         for fname, payload in self._iter_json_files():
             objs, kind_hint = self._extract_objects(payload)
+            base = os.path.basename(fname) if fname else ""
             for obj in objs:
-                raw_objects.append((obj, self._kind(fname, payload, obj, kind_hint)))
+                raw_objects.append((obj, self._kind(fname, payload, obj, kind_hint), base))
 
         if not raw_objects:
             return result
 
         # ── Pass 1: build SID/ObjectIdentifier -> display-name map ─────────
         sid_to_name = {}
-        for obj, kind in raw_objects:
+        for obj, kind, _fname in raw_objects:
             oid = self._objectid(obj)
             name = self._prop(obj, "name") or oid
             if oid:
@@ -81,7 +82,7 @@ class BloodHoundParser:
 
         # ── Pass 2: build result sets ────────────────────────────────────
         seen_names = set()
-        for obj, kind in raw_objects:
+        for obj, kind, source_file in raw_objects:
             props = obj.get("Properties", obj.get("properties", {})) or {}
             name = self._prop(obj, "name") or self._objectid(obj)
 
@@ -182,6 +183,7 @@ class BloodHoundParser:
                     "target":    name,
                     "right":     ace.get("RightName", ""),
                     "inherited": ace.get("IsInherited", False),
+                    "source_file": source_file,
                 })
 
         return result

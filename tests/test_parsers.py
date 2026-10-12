@@ -105,3 +105,32 @@ def test_delegation_targets_extracted(tmp_path):
     })
     assert out["delegation_targets"] == [
         {"principal": "APP01.CORP.LOCAL", "target": "S-1-5-21-1-1-1-2002"}]
+
+
+# ── Stage B: provenance + parse report ───────────────────────────────────────
+from horuseye.parsers.all_parsers import build_parse_report  # noqa: E402
+
+
+def test_acl_carries_source_file(tmp_path):
+    _write(tmp_path, "domains.json", {"meta": {"type": "domains"}, "data": [
+        {"ObjectIdentifier": "S-1-root", "Properties": {"name": "CORP.LOCAL"},
+         "Aces": [{"PrincipalSID": "S-1-root", "RightName": "GenericAll"}]},
+    ]})
+    out = BloodHoundParser(str(tmp_path)).parse()
+    assert out["acls"][0]["source_file"] == "domains.json"
+
+
+class _Args:
+    bloodhound = "x"; ldap = None; cme = None; nxc = None; certipy = None; manual = False
+
+
+def test_parse_report_warns_on_missing_acls():
+    data = {"raw_sources": ["bloodhound"], "users": [{"name": "A"}], "acls": []}
+    rep = build_parse_report(_Args(), data)
+    assert rep["counts"]["users"] == 1 and rep["counts"]["acls"] == 0
+    assert any("ACL" in w for w in rep["warnings"])
+
+
+def test_parse_report_warns_on_empty_bloodhound():
+    rep = build_parse_report(_Args(), {"raw_sources": ["bloodhound"]})
+    assert any("no objects parsed" in w for w in rep["warnings"])

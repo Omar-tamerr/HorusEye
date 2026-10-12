@@ -144,6 +144,56 @@ def parse_all_sources(args, console, animated_task):
         if n and n not in seen:
             seen.append(n)
             unique.append(u)
+    dropped = len(domain_data["users"]) - len(unique)
     domain_data["users"] = unique
 
+    # ── Parse report: counts, provenance, compatibility warnings ────────────────
+    report = build_parse_report(args, domain_data, dropped)
+    domain_data["parse_report"] = report
+    _print_parse_report(console, report)
+
     return domain_data
+
+
+# ── Parse diagnostics ────────────────────────────────────────────────────────
+def build_parse_report(args, domain_data: dict, dropped_dupes: int = 0) -> dict:
+    """Summarize what was parsed and flag compatibility problems, so the operator
+    knows whether a clean result means a clean domain or a thin import."""
+    counts = {k: len(domain_data.get(k, []))
+              for k in ("users", "groups", "computers", "acls", "sessions",
+                        "gpos", "trusts", "spns", "asrep_users",
+                        "local_admins", "delegation_targets")}
+    warnings = []
+
+    if getattr(args, "bloodhound", None) and counts["acls"] == 0 and counts["users"] == 0:
+        warnings.append("BloodHound source given but no objects parsed — check the "
+                        "directory/zip path and that it contains SharpHound JSON.")
+    if getattr(args, "bloodhound", None) and counts["acls"] == 0 and counts["users"] > 0:
+        warnings.append("Users parsed but zero ACL edges — ACL/DCSync/GPO detection "
+                        "will be blind. Collect with SharpHound -c All (or DCOnly+ACL).")
+    if counts["sessions"] == 0 and counts["local_admins"] == 0 and getattr(args, "bloodhound", None):
+        warnings.append("No session or local-admin data — attack-path graph will be "
+                        "limited. Collect with SharpHound -c All.")
+    if counts["users"] > 0 and counts["computers"] == 0:
+        warnings.append("Users but no computers — session/delegation/LSASS analysis "
+                        "will be limited.")
+
+    return {
+        "sources": list(domain_data.get("raw_sources", [])),
+        "counts": counts,
+        "duplicate_users_dropped": dropped_dupes,
+        "warnings": warnings,
+    }
+
+
+def _print_parse_report(console, report: dict):
+    if not report["sources"]:
+        return
+    console.print(f"  [dim]Sources: {', '.join(report['sources'])} · "
+                  f"{report['counts']['users']} users, {report['counts']['acls']} ACLs, "
+                  f"{report['counts']['local_admins']} admin edges, "
+                  f"{report['counts']['sessions']} sessions[/dim]")
+    for w in report["warnings"]:
+        console.print(f"  [yellow]⚠️  {w}[/yellow]")
+    if report["warnings"]:
+        console.print()

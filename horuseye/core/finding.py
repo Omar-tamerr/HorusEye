@@ -48,16 +48,19 @@ _CONFIDENCE: Dict[str, tuple] = {
 }
 
 
-def ev(source: str, obj: str, detail: str = "") -> Dict[str, str]:
+def ev(source: str, obj: str, detail: str = "", file: str = "") -> Dict[str, str]:
     """One evidence reference: which source produced which object, and how.
 
     ``source`` is the data origin (e.g. ``"acl"``, ``"bloodhound"``, ``"certipy"``,
     ``"nxc"``); ``obj`` is the concrete object/relationship; ``detail`` is the
-    specific right/flag/value observed.
+    specific right/flag/value observed; ``file`` is the source file it came from
+    (provenance), when known.
     """
     e = {"source": source, "object": obj}
     if detail:
         e["detail"] = detail
+    if file:
+        e["file"] = file
     return e
 
 
