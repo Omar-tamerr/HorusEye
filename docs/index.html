@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HorusEye — See the path. Know the fix.</title>
+<meta name="description" content="HorusEye turns BloodHound, Certipy and NetExec output into ranked, evidence-backed Active Directory attack paths — with the command for red teams and the fix for blue teams, in one portable offline report.">
+<meta property="og:title" content="HorusEye — AD attack-path analysis">
+<meta property="og:description" content="BloodHound maps the graph. HorusEye tells you the order to walk it, proves every finding with evidence, and hands you the fix.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>%F0%93%82%80</text></svg>">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="logo" href="#"><span class="eye">𓂀</span> Horus<b>Eye</b></a>
+    <button class="navtoggle" aria-label="menu" onclick="document.querySelector('.links').classList.toggle('open')">☰</button>
+    <div class="links">
+      <a href="#features">Features</a>
+      <a href="#how">How it fits</a>
+      <a href="#demo">Live demo</a>
+      <a href="#install">Install</a>
+      <a class="gh" href="https://github.com/Omar-tamerr/HorusEye" target="_blank" rel="noopener">GitHub ★</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebadge">𓂀</div>
+    <h1>HorusEye</h1>
+    <p class="tag">See the path. Know the fix.</p>
+    <p class="sub">An AI-assisted Active Directory attack-path platform. It ingests BloodHound, Certipy, ldapdomaindump and NetExec output, then ranks every path by <b>exploitability</b>, proves it with <b>evidence</b>, and hands red teams the command and blue teams the remediation — in one portable, offline report.</p>
+    <div class="cta">
+      <a class="btn primary" href="#install">Get started</a>
+      <a class="btn ghost" href="demo.html" target="_blank" rel="noopener">▶ Live demo</a>
+      <a class="btn ghost" href="https://github.com/Omar-tamerr/HorusEye" target="_blank" rel="noopener">View on GitHub</a>
+    </div>
+    <div class="badges">
+      <img alt="version" src="https://img.shields.io/badge/version-2.3.0-E4002B?style=flat-square">
+      <img alt="python" src="https://img.shields.io/badge/python-3.8%2B-blue?style=flat-square">
+      <img alt="tests" src="https://img.shields.io/badge/tests-110%20passing-success?style=flat-square">
+      <img alt="license" src="https://img.shields.io/badge/license-MIT-green?style=flat-square">
+      <img alt="platform" src="https://img.shields.io/badge/platform-Linux%20%7C%20Windows-purple?style=flat-square">
+    </div>
+
+    <div class="showcase">
+      <div class="term">
+        <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="ttl">horuseye — shortest path to Domain Admin</span></div>
+<pre><span class="c-dim">$</span> <span class="c-cmd">horuseye --bloodhound ./bh/ --domain corp.local \
+      --graph --owned 'jdoe@corp.local' --explorer report.html</span>
+
+  <span class="c-gold">𓂀 7 paths — 2 CRITICAL, 4 HIGH</span>
+
+  <span class="c-cmd">Path 1</span>  <span class="c-dim">(3 hops: JDOE → ADMINISTRATOR)</span>
+    JDOE@CORP.LOCAL
+      │ <span class="c-dim">MemberOf</span>   ▸ HELPDESK@CORP.LOCAL
+      │ <span class="c-dim">AdminTo</span>    ▸ WEB01.CORP.LOCAL
+      │ <span class="c-dim">HasSession</span> ▸ ADMINISTRATOR@CORP.LOCAL
+
+  <span class="c-crit">𓂀 Remediation impact (break the path):</span>
+    <span class="c-ok">✂</span> remove AdminTo HELPDESK ▸ WEB01  <span class="c-dim">(no alternative remains)</span>
+
+  <span class="c-ok">🧭 Explorer → report.html</span></pre>
+      </div>
+
+      <div class="gfx">
+        <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="ttl">attack path</span></div>
+        <div class="body">
+          <svg viewBox="0 0 320 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="attack path graph">
+            <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#E4002B"/></marker></defs>
+            <line x1="160" y1="52" x2="160" y2="92" stroke="#E4002B" stroke-width="2" marker-end="url(#a)"/>
+            <line x1="160" y1="128" x2="160" y2="168" stroke="#E4002B" stroke-width="2" marker-end="url(#a)"/>
+            <line x1="160" y1="204" x2="160" y2="244" stroke="#E4002B" stroke-width="2" marker-end="url(#a)"/>
+            <text x="172" y="78" fill="#9a9aa3" font-size="11">MemberOf</text>
+            <text x="172" y="154" fill="#9a9aa3" font-size="11">AdminTo</text>
+            <text x="172" y="230" fill="#9a9aa3" font-size="11">HasSession</text>
+            <g font-size="12" font-family="monospace">
+              <rect x="95" y="24" width="130" height="30" rx="7" fill="#14321c" stroke="#3fae6a"/><text x="110" y="43" fill="#e9e9ec">JDOE (you)</text>
+              <rect x="95" y="100" width="130" height="30" rx="7" fill="#1b1b1f" stroke="#26262b"/><text x="110" y="119" fill="#e9e9ec">HELPDESK</text>
+              <rect x="95" y="176" width="130" height="30" rx="7" fill="#1b1b1f" stroke="#26262b"/><text x="110" y="195" fill="#e9e9ec">WEB01</text>
+              <rect x="80" y="252" width="160" height="30" rx="7" fill="#3a1414" stroke="#E4002B"/><text x="95" y="271" fill="#e9e9ec">ADMINISTRATOR 𓂀</text>
+            </g>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- positioning -->
+<section class="gap" id="why">
+  <div class="wrap">
+    <div class="kicker">Where it fits</div>
+    <h2>BloodHound maps the graph.<br>HorusEye tells you what to do about it.</h2>
+    <p class="lead">HorusEye doesn't replace your collectors — it consumes their output and turns a graph of relationships into a ranked, defensible plan of action for <b>both</b> sides of the engagement.</p>
+    <div class="flow">
+      <span class="chip">SharpHound / BloodHound</span>
+      <span class="chip">Certipy</span>
+      <span class="chip">NetExec</span>
+      <span class="arrow">→</span>
+      <span class="chip hot">𓂀 HorusEye</span>
+      <span class="arrow">→</span>
+      <span class="chip">Ranked paths + evidence + fixes</span>
+    </div>
+  </div>
+</section>
+
+<!-- features -->
+<section id="features">
+  <div class="wrap">
+    <div class="kicker">What it does</div>
+    <h2>One analysis, two audiences</h2>
+    <p class="lead">Thirteen attack-path detections, scored by real exploitability — each with the evidence behind it, the command to validate it, and the fix and detection to close it.</p>
+    <div class="grid">
+      <div class="card"><div class="ic">🗺️</div><h3>Shortest path to DA</h3><p>A deterministic graph from any foothold to Domain Admin across membership, ACLs, local-admin, sessions, DCSync and delegation — with the command for each hop.</p></div>
+      <div class="card"><div class="ic">✂️</div><h3>Remediation impact</h3><p>Names the choke points — the single fixes that break the path with no alternative route remaining. Fix the right edge, not all of them.</p></div>
+      <div class="card"><div class="ic">🔎</div><h3>Evidence &amp; confidence</h3><p>Every finding carries the exact ACEs/objects behind it, a confidence level, and the source file — so it's reproducible, not a black box.</p></div>
+      <div class="card"><div class="ic">🛡️</div><h3>Built for defenders too</h3><p>MITRE ATT&amp;CK mapping, concrete remediation steps, and detection guidance (event IDs) on every finding. One report, red and blue.</p></div>
+      <div class="card"><div class="ic">🧭</div><h3>Offline explorer</h3><p>A single self-contained HTML file — dashboard, interactive attack graph, and filterable findings. No server, nothing leaves the file. Hand it to a client.</p></div>
+      <div class="card"><div class="ic">⚙️</div><h3>CI-ready &amp; private</h3><p><code>--diff</code> retests, <code>--fail-on</code> exit codes, byte-deterministic output, and <code>--ai-redact</code> to keep client names off any API. A stable Python API, too.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- compare -->
+<section id="how" class="gap">
+  <div class="wrap">
+    <div class="kicker">How it compares</div>
+    <h2>Complementary, not a clone</h2>
+    <p class="lead">HorusEye is built to sit alongside graph-exploration tooling like BloodHound, focused on the part that comes after the graph: triage, evidence, and remediation.</p>
+    <div class="compare">
+      <table class="cmp">
+        <tr><th>&nbsp;</th><th>Graph tooling (e.g. BloodHound)</th><th class="he">HorusEye</th></tr>
+        <tr><td>Primary job</td><td>Collect &amp; explore the relationship graph</td><td class="he">Triage, score &amp; explain attack paths</td></tr>
+        <tr><td>Output</td><td>Interactive graph app (server + database)</td><td class="he">CLI + one portable offline HTML report</td></tr>
+        <tr><td>Audience</td><td>Primarily offensive</td><td class="he">Red <b>and</b> blue (remediation + detections)</td></tr>
+        <tr><td>Per finding</td><td>Edge description + generic abuse info</td><td class="he">Evidence, confidence, command, fix, detection, ATT&amp;CK</td></tr>
+        <tr><td>Remediation</td><td>Manual analysis</td><td class="he">Choke-point / break-the-path analysis</td></tr>
+        <tr><td>Automation</td><td>—</td><td class="he">Retest diff + CI exit codes</td></tr>
+        <tr><td>Footprint</td><td>Neo4j + web app</td><td class="he">One pip install, one dependency (<code>rich</code>)</td></tr>
+      </table>
+    </div>
+    <p class="note">HorusEye ingests BloodHound/SharpHound data — use both. This table reflects typical usage, not a feature-by-feature benchmark.</p>
+  </div>
+</section>
+
+<!-- demo -->
+<section id="demo" class="demo">
+  <div class="wrap">
+    <div class="kicker">See it live</div>
+    <h2>The explorer, running in your browser</h2>
+    <p class="lead">A real HorusEye report from the bundled <code>acme-lab</code> example — the dashboard, the interactive attack graph, and the findings explorer. No install required.</p>
+    <div class="frame"><iframe src="demo.html" title="HorusEye Explorer live demo" loading="lazy"></iframe></div>
+    <p style="margin-top:14px"><a class="btn ghost" href="demo.html" target="_blank" rel="noopener">Open the demo full-screen ↗</a></p>
+  </div>
+</section>
+
+<!-- install -->
+<section id="install" class="install">
+  <div class="wrap">
+    <div class="kicker">Get started</div>
+    <h2>Install in one line</h2>
+    <p class="lead">Python 3.8+ on Linux or Windows. The only runtime dependency is <code>rich</code>.</p>
+    <div class="box">
+      <div class="cmd"><span class="p">$</span><code id="c1">pip install git+https://github.com/Omar-tamerr/HorusEye</code><button onclick="cp('c1',this)">copy</button></div>
+      <div class="cmd"><span class="p">$</span><code id="c2">horuseye --bloodhound ./bh/ --domain corp.local --graph --explorer report.html</code><button onclick="cp('c2',this)">copy</button></div>
+    </div>
+    <div class="steps">
+      <div class="step"><b>1 · Collect</b><p>Run SharpHound (<code>-c All</code>), Certipy or NetExec as you already do.</p></div>
+      <div class="step"><b>2 · Analyse</b><p>Point HorusEye at the output. Get ranked paths, evidence and fixes in seconds.</p></div>
+      <div class="step"><b>3 · Report</b><p>Ship the offline explorer, Markdown or JSON — or gate CI with <code>--fail-on</code>.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div><span style="color:var(--gold)">𓂀</span> <b>HorusEye</b> — by Omar Tamer · MIT License</div>
+    <div>
+      <a href="https://github.com/Omar-tamerr/HorusEye" target="_blank" rel="noopener">GitHub</a> ·
+      <a href="https://www.linkedin.com/in/omar-tamer-1a986b2a7/" target="_blank" rel="noopener">LinkedIn</a> ·
+      <a href="https://medium.com/@OmarTamer0" target="_blank" rel="noopener">Medium</a> ·
+      <a href="https://github.com/Omar-tamerr/HorusEye/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
+    </div>
+  </div>
+</footer>
+<p class="disc">For authorized security assessments, CTF practice and defensive analysis only. Use only against systems you own or have explicit written permission to test.</p>
+
+<script>
+function cp(id,btn){
+  var t=document.getElementById(id).textContent;
+  navigator.clipboard&&navigator.clipboard.writeText(t).then(function(){
+    var o=btn.textContent;btn.textContent="copied ✓";setTimeout(function(){btn.textContent=o;},1400);
+  });
+}
+// close mobile menu on link click
+Array.prototype.forEach.call(document.querySelectorAll('.links a'),function(a){
+  a.addEventListener('click',function(){document.querySelector('.links').classList.remove('open');});
+});
+</script>
+</body>
+</html>

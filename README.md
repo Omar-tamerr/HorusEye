@@ -28,6 +28,8 @@ command to validate each one.
 ![Tests](https://img.shields.io/badge/tests-pytest-success?style=flat-square)
 ![Author](https://img.shields.io/badge/Author-Omar%20Tamer-gold?style=flat-square)
 
+**🌐 [omar-tamerr.github.io/HorusEye](https://omar-tamerr.github.io/HorusEye/)** · [Live explorer demo](https://omar-tamerr.github.io/HorusEye/demo.html)
+
 *Made with care by **Omar Tamer** — Egypt*
 
 </div>

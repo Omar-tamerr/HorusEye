@@ -10,14 +10,22 @@ readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "MIT" }
 authors = [{ name = "Omar Tamer" }]
-keywords = ["active-directory", "bloodhound", "pentest", "red-team", "security", "ctf"]
+keywords = ["active-directory", "bloodhound", "sharphound", "pentest", "red-team",
+            "blue-team", "security", "ctf", "attack-path", "adcs", "kerberoasting"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
     "Intended Audience :: Information Technology",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Security",
+    "Topic :: System :: Systems Administration :: Authentication/Directory",
 ]
 dependencies = ["rich>=13.0.0"]
 
@@ -26,8 +34,10 @@ dev = ["pytest>=7.0"]
 ai = ["anthropic>=0.40"]
 
 [project.urls]
-Homepage = "https://github.com/Omar-tamerr/HorusEye"
+Homepage = "https://omar-tamerr.github.io/HorusEye/"
+Documentation = "https://github.com/Omar-tamerr/HorusEye#readme"
 Repository = "https://github.com/Omar-tamerr/HorusEye"
+Changelog = "https://github.com/Omar-tamerr/HorusEye/blob/main/CHANGELOG.md"
 Issues = "https://github.com/Omar-tamerr/HorusEye/issues"
 
 [project.scripts]

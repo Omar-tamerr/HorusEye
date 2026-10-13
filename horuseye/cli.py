@@ -212,6 +212,8 @@ def main():
     g8.add_argument("--severity",    choices=["critical","high","all"], default="all")
     g8.add_argument("--config",      action="store_true")
     g8.add_argument("--check-deps",  action="store_true", help="Check external toolchain (hashcat, nxc, impacket, certipy, ...) on PATH")
+    from horuseye import __version__ as _ver
+    g8.add_argument("--version",     action="version", version=f"HorusEye {_ver}")
 
     args = parser.parse_args()
 
