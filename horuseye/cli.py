@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-HorusEye v2.2 — AI-Powered Active Directory Attack Platform
+HorusEye v2.3 — AI-Powered Active Directory Attack Platform
 Author: Omar Tamer 🇪🇬
 """
 
@@ -35,7 +35,7 @@ BANNER = r"""
  ██╔══██║██║   ██║██╔══██╗██║   ██║╚════██║
  ██║  ██║╚██████╔╝██║  ██║╚██████╔╝███████║
  ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝[/bold red][bold white]
- ███████╗██╗   ██╗███████╗  [bold red]v2.2[/bold red]
+ ███████╗██╗   ██╗███████╗  [bold red]v2.3[/bold red]
  ██╔════╝╚██╗ ██╔╝██╔════╝
  █████╗   ╚████╔╝ █████╗
  ██╔══╝    ╚██╔╝  ██╔══╝
@@ -45,7 +45,7 @@ BANNER = r"""
 EYE = r"""[bold yellow]
        .^.
       /|||\ 
-     / ||| \     [bold white]𓂀  HorusEye v2.2  𓂀[/bold white]
+     / ||| \     [bold white]𓂀  HorusEye v2.3  𓂀[/bold white]
     /  𓂀  \    [bold red]🇪🇬 Omar Tamer — Egypt[/bold red]
    /________\[/bold yellow]"""
 
@@ -88,11 +88,11 @@ def main():
     print_banner()
 
     parser = argparse.ArgumentParser(
-        description="HorusEye v2.2 𓂀 — AI-Powered AD Attack Platform by Omar Tamer 🇪🇬",
+        description="HorusEye v2.3 𓂀 — AI-Powered AD Attack Platform by Omar Tamer 🇪🇬",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  𓂀  HorusEye v2.2 — Usage Examples
+  𓂀  HorusEye v2.3 — Usage Examples
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   [Full Interactive Mode]

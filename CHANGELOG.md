@@ -4,6 +4,49 @@ All notable changes to HorusEye are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2026-10-13
+
+A trust-and-evidence release: findings, graph and reports now stand behind
+their claims, and the output is automation-grade. Driven by a full repository
+audit against the "professional AD platform" brief.
+
+### Added
+- **Finding evidence & confidence schema** (`core/finding.py`): every finding
+  carries `rule_id` (more specific than `type`, e.g. `ACL_ABUSE.genericall`),
+  `confidence` + rationale, and structured `evidence` (the actual ACEs/objects),
+  so any finding is reproducible from source data. Evidence is retained in full
+  even when the presentation is aggregated.
+- **Parser provenance**: ACEs are tagged with their `source_file`, carried into
+  DCSync/ACL/GPO evidence — a finding traces to its exact source file+object. A
+  `parse_report` (counts, sources, compatibility warnings) distinguishes a clean
+  domain from a thin import, printed and included in the JSON.
+- **Graph trust**: `--target` paths to arbitrary critical assets (not just
+  Tier-0); edges are labelled observed vs inferred; paths rank by hops then
+  fewer inferred steps with a stated rationale; `remediation_impact()` reports
+  the choke points — the single fixes that break the path with no alternative.
+- **Deterministic output**: report timestamps are injectable and honour
+  `SOURCE_DATE_EPOCH`, so HTML/Markdown/JSON are byte-identical for the same
+  input + config.
+- **Exit-code taxonomy** (`core/exit_codes.py`): 0 OK, 1 ERROR, 2 FINDINGS
+  (`--fail-on`), 3 INCOMPLETE (a source parsed nothing usable — a clean result
+  there is not trusted).
+- **Redaction hardening** (`ai/redaction.py`): masks emails, IPv4, and
+  domain/host/account names before transmission; restored locally.
+- `SECURITY.md` with intended use, operational impact, data-egress policy,
+  vulnerability reporting, and a supported-environment matrix.
+
+### Changed
+- AI output is validated before use and can only populate `ai_narrative`; it can
+  never overwrite a verified field (severity, evidence, remediation, commands).
+- Reports show confidence and an evidence list per finding; JSON stays
+  `horuseye.report/3` (additive) and now includes `parse_report`.
+
+### Fixed
+- The no-input help documented a phase-based CLI (`horuseye recon|enum|...`) that
+  never existed and errored when used; it now describes the real flat-flag CLI.
+- `engine/auto_exploit.py` is clearly flagged as an unwired reference (nothing
+  imports it; the active flags run the stubs).
+
 ## [2.2.0] - 2026-10-12
 
 Turns HorusEye from a finding list into a path-aware analyzer that serves
@@ -116,6 +159,7 @@ and restructures the project into a proper installable package.
   hash-cracking engine, password sprayer, wordlist generator, lateral-movement
   mapper, attack timeline, team collaboration, and HTML/JSON reporting.
 
+[2.3.0]: https://github.com/Omar-tamerr/HorusEye/releases/tag/v2.3.0
 [2.2.0]: https://github.com/Omar-tamerr/HorusEye/releases/tag/v2.2.0
 [2.1.0]: https://github.com/Omar-tamerr/HorusEye/releases/tag/v2.1.0
 [2.0.0]: https://github.com/Omar-tamerr/HorusEye/releases/tag/v2.0.0

@@ -25,7 +25,7 @@ SEV_COLOR = {"CRITICAL": "bold red", "HIGH": "bold yellow", "MEDIUM": "yellow",
 SEV_HEX = {"CRITICAL": "#ff4444", "HIGH": "#ff8800", "MEDIUM": "#ffcc00",
            "LOW": "#88cc00", "INFO": "#888888"}
 SEV_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
-TOOL = "HorusEye v2.2"
+TOOL = "HorusEye v2.3"
 
 
 class ReportGenerator:

@@ -9,7 +9,7 @@
  ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝
  ███████╗██╗   ██╗███████╗
  ██╔════╝╚██╗ ██╔╝██╔════╝
- █████╗   ╚████╔╝ █████╗    v2.2
+ █████╗   ╚████╔╝ █████╗    v2.3
  ██╔══╝    ╚██╔╝  ██╔══╝
  ███████╗   ██║   ███████╗
  ╚══════╝   ╚═╝   ╚══════╝
@@ -24,7 +24,7 @@ command to validate each one.
 ![Python](https://img.shields.io/badge/Python-3.8%2B-blue?style=flat-square&logo=python)
 ![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows-purple?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
-![Version](https://img.shields.io/badge/Version-2.2-red?style=flat-square)
+![Version](https://img.shields.io/badge/Version-2.3-red?style=flat-square)
 ![Tests](https://img.shields.io/badge/tests-pytest-success?style=flat-square)
 ![Author](https://img.shields.io/badge/Author-Omar%20Tamer-gold?style=flat-square)
 
@@ -44,7 +44,16 @@ For CTF players specifically: HorusEye automates the reconnaissance-to-privilege
 
 ---
 
-## What's New in v2.2
+## What's New in v2.3
+
+- **Evidence & confidence on every finding.** Each finding now carries a `rule_id`, a `confidence` level with a stated reason, and structured **evidence** — the actual ACEs/objects behind it — so it can be reproduced from source data. Aggregated findings keep every affected object; nothing is lost to brevity.
+- **Provenance.** Findings trace to their exact **source file** (e.g. `corp_domains.json`), and a **parse report** with compatibility warnings distinguishes a clean domain from a thin import.
+- **Graph you can trust and steer.** `--target` paths to any critical asset (not just Tier-0); edges are labelled **observed vs inferred**; paths rank with a stated rationale; and **remediation impact** names the choke points — the single fixes that break the path.
+- **Automation-grade output.** Reports are **byte-deterministic** (`SOURCE_DATE_EPOCH`), and a documented **exit-code taxonomy** (0/1/2/3) lets CI tell "clean" from "findings" from "incomplete".
+- **Privacy & AI safety.** `--ai-redact` masks emails, IPs, domain and account names before any request; AI output is validated and can never overwrite a verified field.
+- **Honest UX.** The no-input help now describes the real CLI (the old phase-command help was misleading), and `SECURITY.md` documents intended use, data egress, and reporting.
+
+<details><summary><b>What was new in v2.2</b></summary>
 
 - **Attack-path graph engine (`--graph`).** HorusEye now builds a directed *control* graph from group membership, abusable ACLs, local-admin rights, sessions, DCSync and delegation, and finds the **shortest path from a foothold to Domain Admin** — printing the ordered steps and the command for each. BloodHound shows the graph; HorusEye tells you the order to walk it. Set the foothold with `--owned USER@DOMAIN` (default: any domain user).
 - **Built for defenders too.** Every finding now carries **MITRE ATT&CK** technique(s), **remediation** steps, and **detection** guidance (event IDs / telemetry), so one report is actionable for red *and* blue teams.
@@ -62,13 +71,15 @@ For CTF players specifically: HorusEye automates the reconnaissance-to-privilege
 - Honest `--da-checklist` and `--team-connect`; pytest suite + CI.
 </details>
 
+</details>
+
 See the [full changelog](CHANGELOG.md) and the [Roadmap](#roadmap).
 
 ---
 
 ## Contents
 
-- [What's New in v2.2](#whats-new-in-v22)
+- [What's New in v2.3](#whats-new-in-v23)
 - [Features](#features)
 - [Installation](#installation)
 - [Project Structure](#project-structure)
@@ -187,14 +198,17 @@ horuseye/
 │   ├── principals.py        # Tier-0 / noise / broad principal model
 │   ├── knowledge.py         # ATT&CK + remediation + detection per finding
 │   ├── graph.py             # attack-path graph → shortest route to DA
-│   └── diff.py              # retest diff + CI fail-gate
+│   ├── diff.py              # retest diff + CI fail-gate
+│   ├── finding.py           # finding schema (evidence, confidence, rule_id)
+│   └── exit_codes.py        # automation exit-code taxonomy
 ├── engine/           # hash cracking, lateral movement, timeline, checklist, ...
 ├── features/         # creds manager, password spray, wordlist gen, team collab
 ├── reports/          # CLI / HTML / Markdown / JSON report generation
-├── ai/               # optional Claude narrative layer (horuseye[ai])
+├── ai/               # optional Claude layer + local redaction (horuseye[ai])
 └── utils/            # config, dependency preflight, help
-tests/                # pytest suite — 59 tests (parsers, detector, graph,
-                      #   knowledge, noise reduction, reports, diff, AI)
+tests/                # pytest suite — 91 tests (parsers, detector, graph,
+                      #   knowledge, noise, reports, diff, AI, schema,
+                      #   provenance, determinism, redaction)
 docs/                 # screenshots and reference material
 ```
 
@@ -756,6 +770,7 @@ Team Collaboration:
 Attack Paths:
   --graph               Compute shortest attack path(s) to Domain Admin
   --owned PRINCIPALS    Comma-separated owned principals (default: any user)
+  --target ASSETS       Critical assets to path to (default: Tier-0)
   --max-paths N         Max attack paths to show (default: 5)
 
 AI + Output:
@@ -824,7 +839,7 @@ pip install -e ".[dev]"   # installs pytest
 pytest -q
 ```
 
-59 tests cover the BloodHound parser, the scorer, the full detection engine,
+91 tests cover the BloodHound parser, the scorer, the full detection engine,
 noise reduction, the knowledge base, the attack-path graph, report exports, the
 retest diff, and the AI layer (with a fake SDK — no network). A regression guard
 fails if the detector ever stops emitting any of the 13 types or stops producing
