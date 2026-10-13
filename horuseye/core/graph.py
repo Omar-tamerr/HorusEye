@@ -79,14 +79,23 @@ class AttackGraph:
             trust = "inferred" if etype in _INFERRED_TYPES else "observed"
             self.adj.setdefault(s, []).append(Edge(s, d, etype, detail, trust))
 
+    @staticmethod
+    def _dicts(seq):
+        """Yield only dict entries — malformed rows (None, strings) are skipped
+        so a single bad record can't crash graph construction."""
+        for x in seq or []:
+            if isinstance(x, dict):
+                yield x
+
     def _build(self):
         d = self.data
-        for g in d.get("groups", []):
+        for g in self._dicts(d.get("groups")):
             gname = g.get("name", "")
             for m in g.get("members", []) or []:
-                self._edge(m, gname, "MemberOf", "member of group")
+                if m:
+                    self._edge(m, gname, "MemberOf", "member of group")
 
-        for ace in d.get("acls", []):
+        for ace in self._dicts(d.get("acls")):
             right = (ace.get("right", "") or "").strip().lower()
             principal, target = ace.get("principal", ""), ace.get("target", "")
             if not principal or not target:
@@ -100,31 +109,31 @@ class AttackGraph:
             elif right in _TAKEOVER_RIGHTS:
                 self._edge(principal, target, "ACL", f"{right} → object takeover")
 
-        for la in d.get("local_admins", []):
+        for la in self._dicts(d.get("local_admins")):
             p, host = la.get("principal", ""), la.get("computer", "")
             if p and host and self.idx.classify(p) != "noise":
                 self._edge(p, host, "AdminTo", "local administrator",
                            dst_is_computer=True)
 
-        for s in d.get("sessions", []):
+        for s in self._dicts(d.get("sessions")):
             user = s.get("UserName", "") or s.get("user", "")
             host = s.get("ComputerName", "") or s.get("ip", "")
             if user and host:
                 self._edge(host, user, "HasSession", "credentials in memory",
                            src_is_computer=True)
 
-        for ace in d.get("acls", []):
+        for ace in self._dicts(d.get("acls")):
             right = (ace.get("right", "") or "").strip().lower()
             if right in ("dcsync", "getchangesall", "all"):
                 p = ace.get("principal", "")
                 if p and not self.idx.is_expected_replicator(p):
                     self._edge(p, self.domain_node, "DCSync", "replicate domain secrets")
 
-        for c in d.get("computers", []):
+        for c in self._dicts(d.get("computers")):
             if c.get("unconstrained_delegation"):
                 self._edge(c.get("name", ""), self.domain_node, "Unconstrained",
                            "coerce a DC, capture its TGT", src_is_computer=True)
-        for dt in d.get("delegation_targets", []):
+        for dt in self._dicts(d.get("delegation_targets")):
             self._edge(dt.get("principal", ""), dt.get("target", ""),
                        "ConstrainedDeleg", "S4U impersonation")
 

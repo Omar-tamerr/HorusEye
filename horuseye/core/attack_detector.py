@@ -707,7 +707,9 @@ class AttackDetector:
     # ── Helpers ────────────────────────────────────────────────────────────────
     @staticmethod
     def _right(ace: Dict) -> str:
-        """Lower-cased ACL RightName for class matching."""
+        """Lower-cased ACL RightName for class matching. Safe on malformed rows."""
+        if not isinstance(ace, dict):
+            return ""
         return (ace.get("right", "") or "").strip().lower()
 
     @staticmethod
