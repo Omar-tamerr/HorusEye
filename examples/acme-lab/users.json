@@ -1,0 +1,8 @@
+{"meta":{"type":"users","count":6},"data":[
+ {"ObjectIdentifier":"S-1-5-21-ACME-500","Properties":{"name":"ADMINISTRATOR@ACME.LAB","admincount":true,"enabled":true}},
+ {"ObjectIdentifier":"S-1-5-21-ACME-1101","Properties":{"name":"SVC-SQL@ACME.LAB","hasspn":true,"serviceprincipalnames":["MSSQLSvc/sql01.acme.lab:1433"],"enabled":true}},
+ {"ObjectIdentifier":"S-1-5-21-ACME-1102","Properties":{"name":"SVC-BACKUP@ACME.LAB","dontreqpreauth":true,"enabled":true}},
+ {"ObjectIdentifier":"S-1-5-21-ACME-1103","Properties":{"name":"JDOE@ACME.LAB","enabled":true}},
+ {"ObjectIdentifier":"S-1-5-21-ACME-1104","Properties":{"name":"HELPDESK-SVC@ACME.LAB","enabled":true}},
+ {"ObjectIdentifier":"S-1-5-21-ACME-1105","Properties":{"name":"OLD-ADMIN@ACME.LAB","admincount":true,"enabled":false}}
+]}

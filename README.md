@@ -215,6 +215,18 @@ docs/                 # screenshots and reference material
 Run it with the installed `horuseye` command, with `python -m horuseye`, or
 straight from a clone with `python horuseye.py`.
 
+**Try it now** on the synthetic [`examples/acme-lab`](examples/README.md) dataset
+(no collection needed). **Embed it** via the stable Python API:
+
+```python
+from horuseye import api
+data = api.parse_sources(bloodhound="./bh/", domain="corp.local", dc="10.0.0.5")
+result = api.analyze(data, owned=["bob@corp.local"])   # findings + paths + summary
+```
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and
+[CONTRIBUTING.md](CONTRIBUTING.md) to add a detection.
+
 ---
 
 ## Quick Start

@@ -1,0 +1,4 @@
+{"meta":{"type":"groups","count":2},"data":[
+ {"ObjectIdentifier":"S-1-5-21-ACME-512","Properties":{"name":"DOMAIN ADMINS@ACME.LAB","admincount":true},"Members":[{"ObjectIdentifier":"S-1-5-21-ACME-500","ObjectType":"User"}]},
+ {"ObjectIdentifier":"S-1-5-21-ACME-1200","Properties":{"name":"HELPDESK@ACME.LAB"},"Members":[{"ObjectIdentifier":"S-1-5-21-ACME-1103","ObjectType":"User"},{"ObjectIdentifier":"S-1-5-21-ACME-1104","ObjectType":"User"}]}
+]}

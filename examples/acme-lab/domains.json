@@ -1,0 +1,6 @@
+{"meta":{"type":"domains","count":1},"data":[
+ {"ObjectIdentifier":"S-1-5-21-ACME","Properties":{"name":"ACME.LAB"},
+  "Aces":[{"PrincipalSID":"S-1-5-21-ACME-1104","RightName":"GetChanges"},
+          {"PrincipalSID":"S-1-5-21-ACME-1104","RightName":"GetChangesAll"}],
+  "Trusts":[{"TargetDomainName":"PARTNER.LAB","TrustDirection":"Bidirectional","TrustType":"Forest","IsTransitive":true}]}
+]}

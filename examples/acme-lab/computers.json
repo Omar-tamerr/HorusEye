@@ -1,0 +1,7 @@
+{"meta":{"type":"computers","count":3},"data":[
+ {"ObjectIdentifier":"S-1-5-21-ACME-2001","Properties":{"name":"WEB01.ACME.LAB","unconstraineddelegation":true,"enabled":true},
+  "LocalAdmins":{"Results":[{"ObjectIdentifier":"S-1-5-21-ACME-1200","ObjectType":"Group"}]},
+  "Sessions":{"Results":[{"UserSID":"S-1-5-21-ACME-500"}]}},
+ {"ObjectIdentifier":"S-1-5-21-ACME-2002","Properties":{"name":"FILE01.ACME.LAB","enabled":true}},
+ {"ObjectIdentifier":"S-1-5-21-ACME-2003","Properties":{"name":"DC01.ACME.LAB","enabled":true}}
+]}
