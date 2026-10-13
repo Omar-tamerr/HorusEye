@@ -33,7 +33,8 @@ class ReportGenerator:
                  generated_at: str = None):
         self.findings = findings
         self.domain_data = domain_data
-        self.attack_paths = []        # set by the CLI when --graph runs
+        self.attack_paths = []        # set by the CLI when --graph/--explorer runs
+        self.remediation = []         # per-edge remediation impact for the shortest path
         # Timestamp is injectable so reports are byte-reproducible for the same
         # input + config (e.g. CI sets SOURCE_DATE_EPOCH). Defaults to now.
         self.generated_at = generated_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -194,6 +195,14 @@ class ReportGenerator:
             blocks += (f'<div class="path"><b>Path {i}</b> '
                        f'<span class="meta">({p["hops"]} hop(s))</span><br>{chain}</div>')
         return f"<h2>Attack Paths to Domain Admin</h2>{blocks}"
+
+    # ── Interactive offline explorer ───────────────────────────────────────────
+    def export_explorer(self, filepath: str):
+        from horuseye.reports.explorer import build_explorer
+        page = build_explorer(self.findings, self.attack_paths, self.remediation,
+                              self.domain_data, self.generated_at)
+        Path(filepath).write_text(page, encoding="utf-8")
+        self._p(f"[green]🧭 Explorer → {filepath}[/green]")
 
     # ── Markdown (with Mermaid attack-path diagrams) ───────────────────────────
     def export_markdown(self, filepath: str):

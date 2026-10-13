@@ -46,6 +46,7 @@ For CTF players specifically: HorusEye automates the reconnaissance-to-privilege
 
 ## What's New in v2.3
 
+- **Interactive offline explorer (`--explorer`).** One self-contained HTML file — a dashboard, a clickable attack-path graph (nodes/edges → evidence, choke points highlighted red), and a filterable findings explorer. No server, no external requests; open it anywhere, hand it to a client.
 - **Evidence & confidence on every finding.** Each finding now carries a `rule_id`, a `confidence` level with a stated reason, and structured **evidence** — the actual ACEs/objects behind it — so it can be reproduced from source data. Aggregated findings keep every affected object; nothing is lost to brevity.
 - **Provenance.** Findings trace to their exact **source file** (e.g. `corp_domains.json`), and a **parse report** with compatibility warnings distinguishes a clean domain from a thin import.
 - **Graph you can trust and steer.** `--target` paths to any critical asset (not just Tier-0); edges are labelled **observed vs inferred**; paths rank with a stated rationale; and **remediation impact** names the choke points — the single fixes that break the path.
@@ -206,7 +207,7 @@ horuseye/
 ├── reports/          # CLI / HTML / Markdown / JSON report generation
 ├── ai/               # optional Claude layer + local redaction (horuseye[ai])
 └── utils/            # config, dependency preflight, help
-tests/                # pytest suite — 106 tests (parsers, detector, graph,
+tests/                # pytest suite — 110 tests (parsers, detector, graph,
                       #   knowledge, noise, reports, diff, AI, schema,
                       #   provenance, determinism, redaction)
 docs/                 # screenshots and reference material
@@ -793,6 +794,7 @@ AI + Output:
   --ai-redact           Mask domain/principal names before sending to the API
   --report FILE         Export HTML report
   --markdown FILE       Export Markdown report (Mermaid attack-path diagrams)
+  --explorer FILE       Interactive offline HTML explorer (dashboard+graph+findings)
   --json FILE           Export JSON findings (schema horuseye.report/2)
   --diff OLD.json       Retest: compare to a previous JSON report
   --fail-on LEVEL       Exit non-zero if a finding at/above LEVEL exists (CI)
@@ -851,7 +853,7 @@ pip install -e ".[dev]"   # installs pytest
 pytest -q
 ```
 
-106 tests cover the BloodHound parser, the scorer, the full detection engine,
+110 tests cover the BloodHound parser, the scorer, the full detection engine,
 noise reduction, the knowledge base, the attack-path graph, report exports, the
 retest diff, and the AI layer (with a fake SDK — no network). A regression guard
 fails if the detector ever stops emitting any of the 13 types or stops producing
@@ -877,7 +879,10 @@ releases:
   graph, and weighted paths (by exploitation ease, not just hop count).
 
 *Shipped in v2.2: the attack-path graph engine, the defender-facing knowledge
-base, and the modernized AI layer.*
+base, and the modernized AI layer. Shipped in v2.3: the finding evidence/
+confidence schema, parser provenance, graph trust + remediation impact,
+deterministic output + CI exit codes, redaction hardening, benchmarks, a public
+Python API, and the interactive offline explorer.*
 
 Contributions and issues are welcome at the
 [issue tracker](https://github.com/Omar-tamerr/HorusEye/issues).

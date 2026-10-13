@@ -206,6 +206,7 @@ def main():
     g8.add_argument("--report",      metavar="FILE")
     g8.add_argument("--json",        metavar="FILE")
     g8.add_argument("--markdown",    metavar="FILE", help="Export Markdown report with Mermaid attack-path diagrams")
+    g8.add_argument("--explorer",    metavar="FILE", help="Export the interactive offline HTML explorer (dashboard + graph + findings)")
     g8.add_argument("--diff",        metavar="OLD.json", help="Compare against a previous JSON report (retest: new / fixed / unchanged)")
     g8.add_argument("--fail-on",     metavar="LEVEL", choices=["critical","high","medium","low"], help="Exit non-zero if a finding at/above LEVEL exists (for CI gates)")
     g8.add_argument("--severity",    choices=["critical","high","all"], default="all")
@@ -489,6 +490,18 @@ def run_main_analysis(args, config, claude_key):
     if args.graph:
         graph_paths = render_attack_paths(domain_data, args)
         reporter.attack_paths = graph_paths
+    # The explorer needs the graph + remediation impact; compute quietly if the
+    # --graph view didn't already produce them.
+    if getattr(args, "explorer", None):
+        from horuseye.core.graph import AttackGraph
+        owned = [o.strip() for o in (args.owned or "").split(",") if o.strip()] or None
+        targets = [t.strip() for t in (getattr(args, "target", "") or "").split(",") if t.strip()] or None
+        g = AttackGraph(domain_data)
+        if not reporter.attack_paths:
+            reporter.attack_paths = [g.describe(p) for p in
+                                     g.shortest_paths(owned=owned, targets=targets,
+                                                      max_paths=max(1, args.max_paths))]
+        reporter.remediation = g.remediation_impact(owned=owned, targets=targets)
 
     # ── DA Checklist ─────────────────────────────────────────────────────
     if args.da_checklist:
@@ -542,6 +555,10 @@ def run_main_analysis(args, config, claude_key):
     if args.markdown:
         reporter.export_markdown(args.markdown)
         console.print(f"[green]📝 Markdown → [cyan]{args.markdown}[/cyan][/green]")
+    if getattr(args, "explorer", None):
+        animated_task("Building interactive explorer", ["Graph", "Findings", "Embedding"], "green")
+        reporter.export_explorer(args.explorer)
+        console.print(f"[green]🧭 Explorer → [cyan]{args.explorer}[/cyan][/green]")
 
     # ── Retest diff ────────────────────────────────────────────────────────
     if args.diff:

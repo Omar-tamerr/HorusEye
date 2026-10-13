@@ -43,6 +43,10 @@ audit against the "professional AD platform" brief.
   `attack_paths`, `remediation_impact`, `parse_sources`.
 - **Example dataset** (`examples/acme-lab/`, synthetic) with a reproducible demo,
   plus `docs/ARCHITECTURE.md` and `docs/RELEASING.md`.
+- **Interactive offline explorer** (`--explorer FILE`): one self-contained HTML
+  file — Overview dashboard, clickable attack-path graph (nodes/edges → evidence,
+  choke points highlighted), and a filterable Findings explorer. No server, no
+  external requests; safe to hand to a client.
 
 ### Changed
 - AI output is validated before use and can only populate `ai_narrative`; it can
