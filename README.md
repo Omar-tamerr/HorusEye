@@ -206,7 +206,7 @@ horuseye/
 ├── reports/          # CLI / HTML / Markdown / JSON report generation
 ├── ai/               # optional Claude layer + local redaction (horuseye[ai])
 └── utils/            # config, dependency preflight, help
-tests/                # pytest suite — 91 tests (parsers, detector, graph,
+tests/                # pytest suite — 106 tests (parsers, detector, graph,
                       #   knowledge, noise, reports, diff, AI, schema,
                       #   provenance, determinism, redaction)
 docs/                 # screenshots and reference material
@@ -851,7 +851,7 @@ pip install -e ".[dev]"   # installs pytest
 pytest -q
 ```
 
-91 tests cover the BloodHound parser, the scorer, the full detection engine,
+106 tests cover the BloodHound parser, the scorer, the full detection engine,
 noise reduction, the knowledge base, the attack-path graph, report exports, the
 retest diff, and the AI layer (with a fake SDK — no network). A regression guard
 fails if the detector ever stops emitting any of the 13 types or stops producing

@@ -34,6 +34,15 @@ audit against the "professional AD platform" brief.
   domain/host/account names before transmission; restored locally.
 - `SECURITY.md` with intended use, operational impact, data-egress policy,
   vulnerability reporting, and a supported-environment matrix.
+- **Performance harness** (`scripts/benchmark.py`) + a deterministic synthetic
+  domain generator (`horuseye/synthetic.py`) with labeled ground truth. At 5000
+  users: detect ~2ms, graph ~18ms, ~2MB peak. Stress tests cover large graphs,
+  duplicate relationships, disconnected graphs, malformed input, and measure
+  100% recall on planted findings.
+- **Stable public Python API** (`horuseye.api`): `detect`, `analyze`,
+  `attack_paths`, `remediation_impact`, `parse_sources`.
+- **Example dataset** (`examples/acme-lab/`, synthetic) with a reproducible demo,
+  plus `docs/ARCHITECTURE.md` and `docs/RELEASING.md`.
 
 ### Changed
 - AI output is validated before use and can only populate `ai_narrative`; it can
