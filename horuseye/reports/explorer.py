@@ -121,6 +121,7 @@ def build_graph_view(paths: List[Dict], impact: List[Dict],
                     "command": cmds[si] if si < len(cmds) else "",
                     "choke": bool(h and h.get("breaks_path")),
                     "alt": None if h is None else bool(h.get("alternative_remains")),
+                    "kept": bool(h and h.get("kept")),
                     "paths": [],
                 }
             if pi not in e["paths"]:
@@ -172,7 +173,8 @@ def _demo_bar(demo: Dict) -> str:
 
 def build_explorer(findings: List[Dict], paths: List[Dict], impact: List[Dict],
                    domain_data: Dict, generated_at: str,
-                   demo: Optional[Dict] = None, version: Optional[str] = None) -> str:
+                   demo: Optional[Dict] = None, version: Optional[str] = None,
+                   plans: Optional[List[Dict]] = None, keep: Optional[List[str]] = None) -> str:
     if version is None:
         try:
             from horuseye import __version__ as version
@@ -203,6 +205,8 @@ def build_explorer(findings: List[Dict], paths: List[Dict], impact: List[Dict],
         "findings": findings,
         "paths": paths or [],
         "graph": build_graph_view(paths, impact, domain_data),
+        "plans": plans or [],
+        "keep": [str(k).replace("->", " → ") for k in keep or []],
         "default_view": (demo or {}).get("default_view") or "overview",
     }
     blob = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
@@ -386,6 +390,12 @@ __HEAD_EXTRA__
  .fixes li{margin:6px 0}
  .fixes a{color:#fff;text-decoration:none;border-bottom:1px dotted #555}
  .fixes a:hover{color:var(--gold)}
+ .fixes .eff{color:#c4c4ca;font-size:12.5px;margin:3px 0 2px}
+ .opts{display:grid;gap:8px;margin:8px 0 10px}
+ .opt{display:block;width:100%;text-align:left;background:var(--panel2);border:1px solid var(--line);border-radius:10px;
+   padding:9px 12px;color:var(--fg);cursor:pointer;font:inherit}
+ .opt:hover{border-color:#55555e} .opt.on{border-color:var(--red);background:#1d0b0f}
+ .opt b{display:block;font-size:13px} .opt span{display:block;color:var(--muted);font-size:12px;margin-top:2px}
  .flist{list-style:none;margin:4px 0;padding:0} .flist li{margin:5px 0}
  .flist a{color:#e9e9ec;text-decoration:none} .flist a:hover{color:var(--gold)}
 
@@ -437,8 +447,15 @@ var SEV = ["CRITICAL","HIGH","MEDIUM","LOW","INFO"];
 var SEVC = {CRITICAL:"var(--crit)",HIGH:"var(--high)",MEDIUM:"var(--med)",LOW:"var(--low)",INFO:"var(--info)"};
 var VIEWS = ["overview","paths","findings"];
 var G = D.graph;
-var S = {route: D.paths.length ? 0 : -1, edge: null, node: null};
+var S = {route: D.paths.length ? 0 : -1, edge: null, node: null, plan: 0};
 var F = {sev: "ALL", q: "", open: {}, sortK: "severity", sortDir: 1};
+var PL = D.plans || [];   // remediation options, each breaking every route
+
+function sameEdge(c,e){return c.from===e.from&&c.to===e.to&&c.type===e.type&&(c.detail||"")===(e.detail||"");}
+function edgeOf(c){for(var i=0;i<G.edges.length;i++)if(sameEdge(c,G.edges[i]))return G.edges[i];return null;}
+// Edges the selected option cuts; without options, the structural choke points.
+function isCut(e){if(!PL.length)return e.choke;var p=PL[S.plan]||PL[0];
+  return p.changes.some(function(c){return sameEdge(c,e);});}
 
 function esc(s){s=(s==null?"":String(s));return s.replace(/[&<>"']/g,function(c){
   return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];});}
@@ -581,7 +598,7 @@ window.addEventListener("hashchange",function(){show(location.hash.slice(1));});
   $("v-paths").innerHTML='<div class="phead"><div><h2>Attack paths</h2><div class="psum" id="psum"></div></div><div class="chips" id="routes"></div></div>'
     +'<div class="gwrap" id="gbox"><svg id="gsvg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Attack path graph"></svg></div>'
     +'<div class="legend"><span><i class="sq start"></i>Foothold</span><span><i class="sq goal"></i>Target</span>'
-    +'<span><i class="ln"></i>Selected route</span><span><i class="ln choke"></i>✂ Choke point</span>'
+    +'<span><i class="ln"></i>Selected route</span><span><i class="ln choke"></i>'+(PL.length?'✂ Selected fix':'✂ Choke point')+'</span>'
     +'<span><i class="ln dash"></i>Inferred step</span><span>Click any node or relationship to inspect it</span></div>'
     +'<div class="pgrid"><div class="card" id="walk"></div><div class="side"><div class="card" id="inspect"></div><div class="card" id="fix"></div></div></div>';
   $("gsvg").addEventListener("click",function(){if(S.edge!==null||S.node!==null){S.edge=null;S.node=null;renderPaths();}});
@@ -634,12 +651,12 @@ function drawGraph(){
     if(!V){x1=a.x+nW;y1=a.cy;x2=b.x-3;y2=b.cy;var dx=Math.max(48,Math.abs(x2-x1)/2);c1x=x1+dx;c1y=y1;c2x=x2-dx;c2y=y2;}
     else{x1=a.cx;y1=a.y+nH;x2=b.cx;y2=b.y-3;var dy=Math.max(36,Math.abs(y2-y1)/2);c1x=x1;c1y=y1+dy;c2x=x2;c2y=y2-dy;}
     var d="M"+x1.toFixed(1)+","+y1.toFixed(1)+" C"+c1x.toFixed(1)+","+c1y.toFixed(1)+" "+c2x.toFixed(1)+","+c2y.toFixed(1)+" "+x2.toFixed(1)+","+y2.toFixed(1);
-    var on=r<0||e.paths.indexOf(r)>=0;
-    var cls="edge"+(on?" on":" dim")+(e.choke?" choke":"")+(e.trust==="inferred"?" inferred":"")+(S.edge===e.id?" sel":"");
-    var mk=e.choke?"m-choke":(on?"m-on":"m-dim");
+    var on=r<0||e.paths.indexOf(r)>=0,cut=isCut(e);
+    var cls="edge"+(on?" on":" dim")+(cut?" choke":"")+(e.trust==="inferred"?" inferred":"")+(S.edge===e.id?" sel":"");
+    var mk=cut?"m-choke":(on?"m-on":"m-dim");
     var t=fan[e.from]>1?0.64:0.5,u=1-t,k0=u*u*u,k1=3*u*u*t,k2=3*u*t*t,k3=t*t*t;
     var mx=k0*x1+k1*c1x+k2*c2x+k3*x2,my=k0*y1+k1*c1y+k2*c2y+k3*y2;
-    var lab=(e.choke?"✂ ":"")+edgeLabel(e)+(e.trust==="inferred"?" (inferred)":"");
+    var lab=(cut?"✂ ":(e.kept?"🔒 ":""))+edgeLabel(e)+(e.trust==="inferred"?" (inferred)":"");
     var pw=Math.round(lab.length*6.5+18),ph=21;
     h+='<g class="'+cls+'" data-edge="'+e.id+'" tabindex="0" role="button" aria-label="'+esc(short(e.from)+" "+edgeLabel(e)+" "+short(e.to))+'">'
       +'<path class="line" d="'+d+'" marker-end="url(#'+mk+')"/><path class="flow" d="'+d+'"/><path class="hit" d="'+d+'"/>'
@@ -702,7 +719,8 @@ function renderInspector(){
       +(e.trust==="inferred"?'<p class="muted small">Inferred: the data makes this step possible, but it needs an extra action (coercion or delegation abuse) to work.</p>':'')
       +edgeCmd(e,e.command)
       +'<div class="lab">Remediation impact</div><p>'+(e.choke?'<b class="red">✂ Choke point.</b> Removing this relationship breaks every route shown.'
-        :(e.alt?'Another route remains if only this is fixed.':'Not analysed for this run.'))+'</p>'
+        :(e.alt?'Another route remains if only this is fixed.':'Not analysed for this run.'))
+      +(e.kept?' 🔒 Marked as required (<code>--keep</code>): the remediation options leave it in place.':'')+'</p>'
       +'<div class="lab">Fix</div><p>'+esc(fixText(e))+'</p>'
       +'<div class="lab">On routes</div><p>'+routeLinks(e.paths)+'</p>'+relatedFindings([e.from,e.to]);
     return;}
@@ -713,7 +731,23 @@ function renderInspector(){
     return;}
   el.innerHTML='<div class="lab">Inspector</div><p class="muted">Click any node or relationship in the graph to see what it means, how to validate it, and how to fix it.</p>';
 }
+function changeItem(c){var e=edgeOf(c);
+  return '<li>'+(e?'<a href="#" data-edge-sel="'+e.id+'">'+esc(c.fix)+'</a>':esc(c.fix)+' <span class="muted small">(on a route not drawn here)</span>')
+    +'<div class="eff">'+esc(c.effect)+(c.note?' <span class="muted">'+esc(c.note)+'</span>':'')+'</div></li>';}
+function planMeta(p){var m=p.memberships_removed;
+  return plural(p.changes.length,"change")+' · '+(m?'removes '+plural(m,"group membership"):'no one leaves a group');}
 function renderFix(){
+  if(PL.length){
+    var k=Math.min(S.plan,PL.length-1),p=PL[k],n=p.changes.length;
+    var h='<div class="lab">Remediation</div><h3>✂ '+(k===0?'Fix this first':esc(p.title))+'</h3>'
+      +'<p class="muted small">'+(n===1?'This one change breaks':'These '+n+' changes together break')
+      +' every route, including any not drawn here (verified).</p><ol class="fixes">'+p.changes.map(changeItem).join("")+'</ol>';
+    if(PL.length>1){h+='<div class="lab">Compare options</div><div class="opts">'
+      +PL.map(function(q,i){return '<button type="button" class="opt'+(i===k?' on':'')+'" data-plan="'+i+'"><b>Option '+(i+1)+' · '+esc(q.title)+'</b>'
+        +'<span>'+planMeta(q)+'</span><span>'+esc(q.summary)+'</span></button>';}).join("")+'</div>';}
+    if(D.keep&&D.keep.length)h+='<p class="muted small">🔒 Kept as required: '+esc(D.keep.join(", "))+'</p>';
+    h+='<p class="muted small">Someone needs this access for their job? Mark it as required with <code>--keep "SRC-&gt;DST"</code> and HorusEye plans around it.</p>';
+    $("fix").innerHTML=h;return;}
   var chokes=G.edges.filter(function(e){return e.choke;}),others=G.edges.filter(function(e){return !e.choke;});
   var h='<div class="lab">Remediation</div><h3>✂ Fix this first</h3>';
   if(chokes.length){h+='<p class="muted small">'+(chokes.length===1?'This one change breaks':'Any one of these changes breaks')+' every route shown:</p><ol class="fixes">'
@@ -788,6 +822,7 @@ document.addEventListener("click",function(ev){
   if((b=t.closest("[data-copy]"))){ev.preventDefault();ev.stopPropagation();copyText(b.getAttribute("data-copy"),b);return;}
   if((b=t.closest("[data-route]"))){ev.preventDefault();S.route=+b.getAttribute("data-route");S.edge=null;S.node=null;
     renderPaths();if(location.hash!=="#paths")location.hash="paths";return;}
+  if((b=t.closest("[data-plan]"))){ev.preventDefault();S.plan=+b.getAttribute("data-plan");S.edge=null;S.node=null;renderPaths();return;}
   if((b=t.closest("[data-edge-sel]"))){ev.preventDefault();S.edge=+b.getAttribute("data-edge-sel");S.node=null;renderPaths();
     var gb=$("gbox");if(gb&&gb.getBoundingClientRect().top<0)gb.scrollIntoView({behavior:"smooth",block:"start"});return;}
   if((b=t.closest("[data-find]"))){ev.preventDefault();openFinding(b.getAttribute("data-find"));return;}

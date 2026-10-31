@@ -35,6 +35,8 @@ class ReportGenerator:
         self.domain_data = domain_data
         self.attack_paths = []        # set by the CLI when --graph/--explorer runs
         self.remediation = []         # per-edge remediation impact for the shortest path
+        self.remediation_plans = []   # alternative fix plans, each breaking every route
+        self.keep = []                # relationships marked business-required (--keep)
         # Timestamp is injectable so reports are byte-reproducible for the same
         # input + config (e.g. CI sets SOURCE_DATE_EPOCH). Defaults to now.
         self.generated_at = generated_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -194,13 +196,41 @@ class ReportGenerator:
                           f'<span class="hop">{html.escape(s["to"])}</span>')
             blocks += (f'<div class="path"><b>Path {i}</b> '
                        f'<span class="meta">({p["hops"]} hop(s))</span><br>{chain}</div>')
-        return f"<h2>Attack Paths to Domain Admin</h2>{blocks}"
+        return f"<h2>Attack Paths to Domain Admin</h2>{blocks}" + self._html_plans()
+
+    @staticmethod
+    def _plan_meta(p: dict) -> str:
+        n, m = len(p["changes"]), p.get("memberships_removed", 0)
+        return (f"{n} change{'s' if n != 1 else ''} · "
+                + (f"removes {m} group membership{'s' if m != 1 else ''}" if m
+                   else "no one leaves a group"))
+
+    def _html_plans(self) -> str:
+        if not self.remediation_plans:
+            return ""
+        esc = html.escape
+        out = ['<h2>Remediation Options</h2><p class="meta">Each option breaks every route, '
+               'including routes not shown (verified). Mark access people need for their job '
+               'with <code>--keep SRC-&gt;DST</code> and no option will remove it.</p>']
+        if self.keep:
+            out.append('<p class="meta">Kept as required: '
+                       + esc(", ".join(k.replace("->", " → ") for k in self.keep)) + '</p>')
+        for i, p in enumerate(self.remediation_plans, 1):
+            items = "".join(
+                f'<li>{esc(c["fix"])}<br><span class="meta">{esc(c["effect"])}'
+                f'{" " + esc(c["note"]) if c.get("note") else ""}</span></li>'
+                for c in p["changes"])
+            out.append(f'<div class="path"><b>Option {i} · {esc(p["title"])}</b> '
+                       f'<span class="meta">({esc(self._plan_meta(p))})</span><br>'
+                       f'<span class="meta">{esc(p["summary"])}</span><ol>{items}</ol></div>')
+        return "".join(out)
 
     # ── Interactive offline explorer ───────────────────────────────────────────
     def export_explorer(self, filepath: str):
         from horuseye.reports.explorer import build_explorer
         page = build_explorer(self.findings, self.attack_paths, self.remediation,
-                              self.domain_data, self.generated_at)
+                              self.domain_data, self.generated_at,
+                              plans=self.remediation_plans, keep=self.keep)
         Path(filepath).write_text(page, encoding="utf-8")
         self._p(f"[green]🧭 Explorer → {filepath}[/green]")
 
@@ -231,6 +261,21 @@ class ReportGenerator:
                     for line in cmd.splitlines():
                         if line.strip() and not line.strip().startswith("#"):
                             out.append(f"  ```bash\n  {line}\n  ```")
+                out.append("")
+
+        if self.remediation_plans:
+            out += ["## Remediation Options", "",
+                    "Each option breaks every route, including routes not shown (verified). "
+                    "Mark access people need for their job with `--keep 'SRC->DST'` and no "
+                    "option will remove it.", ""]
+            if self.keep:
+                out += ["Kept as required: " + ", ".join(f"`{k}`" for k in self.keep), ""]
+            for i, p in enumerate(self.remediation_plans, 1):
+                out += [f"### Option {i} — {p['title']} ({self._plan_meta(p)})", "",
+                        p["summary"], ""]
+                for j, c in enumerate(p["changes"], 1):
+                    note = f" {c['note']}" if c.get("note") else ""
+                    out += [f"{j}. **{c['fix']}**  ", f"   {c['effect']}{note}"]
                 out.append("")
 
         out += ["## Findings", ""]
@@ -282,6 +327,8 @@ class ReportGenerator:
             },
             "parse_report": self.domain_data.get("parse_report", {}),
             "attack_paths": self.attack_paths,
+            "remediation_plans": self.remediation_plans,
+            "keep": self.keep,
             "findings": self.findings,
         }
         Path(filepath).write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")

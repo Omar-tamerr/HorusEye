@@ -40,17 +40,20 @@ def main() -> None:
     graph = AttackGraph(data)
     paths = [graph.describe(p) for p in graph.shortest_paths(owned=OWNED, max_paths=5)]
     impact = graph.remediation_impact(owned=OWNED, max_paths=5)
+    plans = graph.remediation_plans(owned=OWNED)
 
     epoch = os.environ.get("SOURCE_DATE_EPOCH")
     when = (datetime.fromtimestamp(int(epoch), tz=timezone.utc) if epoch
             else datetime.now(timezone.utc))
-    page = build_explorer(findings, paths, impact, data, when.strftime("%Y-%m-%d"), demo=DEMO)
+    page = build_explorer(findings, paths, impact, data, when.strftime("%Y-%m-%d"), demo=DEMO,
+                          plans=plans)
 
     out = ROOT / "docs" / "demo.html"
     out.write_text(page, encoding="utf-8")
     chokes = sum(1 for h in impact if h["breaks_path"])
     print(f"wrote {out.relative_to(ROOT)} ({len(page):,} bytes): "
-          f"{len(findings)} findings, {len(paths)} routes, {chokes} choke point(s)")
+          f"{len(findings)} findings, {len(paths)} routes, {chokes} choke point(s), "
+          f"{len(plans)} remediation option(s)")
 
 
 if __name__ == "__main__":

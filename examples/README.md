@@ -45,6 +45,19 @@ horuseye --bloodhound examples/acme-lab --domain ACME.LAB --dc 10.10.0.5 \
   `HELPDESK` breaks both routes. Every other fix (the reset right, the DCSync
   grant, the local-admin rights, the admin session) closes one route but leaves
   the other open — which is exactly why the choke point is the fix to make first.
+- **Remediation options** compare three ways to break every route:
+  1. *Fewest changes*: remove `JDOE` from `HELPDESK` (JDOE also loses the
+     password-reset right and local admin on `WEB01`).
+  2. *Keep group memberships*: remove `HELPDESK`'s reset right on
+     `HELPDESK-SVC` and its local admin on `WEB01`; JDOE stays in the group.
+  3. *Fix nearest the targets*: remove `HELPDESK`'s local admin on `WEB01` and
+     `HELPDESK-SVC`'s DCSync rights. It cuts admin on `WEB01` rather than the
+     Administrator's session, because `WEB01` also has unconstrained
+     delegation: a third, inferred route to the domain that isn't drawn.
+
+  If JDOE needs the membership for their job, add
+  `--keep 'JDOE@ACME.LAB->HELPDESK@ACME.LAB'`; option 1 then becomes the
+  two-change fix and the membership is never proposed.
 
 The same report runs on the website as the
 [live demo](https://omar-tamerr.github.io/HorusEye/demo.html), rebuilt with

@@ -29,6 +29,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   same object stay distinct), with regression tests.
 
 ### Added
+- **Remediation options that account for the business.** After the attack
+  paths, HorusEye compares alternative fixes: *Fewest changes*, *Keep group
+  memberships* (narrow the groups' permissions instead of removing anyone) and
+  *Fix nearest the targets*. Each is a minimum set of changes (max-flow /
+  min-cut) that breaks **every** route — including routes not displayed — and
+  is re-verified by search. Every change says who is affected and what they
+  lose: a removed membership lists all the rights the user loses with it; a
+  narrowed group permission lists every member who loses that one right.
+  Shown in the CLI, the explorer (pick an option and the ✂ marks move on the
+  graph), the HTML and Markdown reports, and JSON (`remediation_plans`).
+- **`--keep 'SRC->DST'`** marks access people need for their job; no
+  remediation option removes it, and a choke point that is kept is labelled as
+  such. A `--keep` that matches nothing in the data is flagged as a likely typo.
+- `api.remediation_plans()`; `api.analyze(..., keep=)` includes the options.
 - `scripts/build_demo.py` rebuilds the website's live demo; demo-only extras
   (back-to-home bar, "synthetic data" label, link-preview tags, Attack Paths as
   the landing view) are opt-in and never appear in normal reports.

@@ -21,6 +21,7 @@ if sys.platform == "win32":
 from datetime import datetime
 from rich.console import Console
 from rich.panel import Panel
+from rich.markup import escape
 from rich.rule import Rule
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 import time
@@ -157,6 +158,9 @@ def main():
     g3.add_argument("--owned",        metavar="PRINCIPALS", help="Comma-separated owned principals to path from (default: any domain user)")
     g3.add_argument("--target",       metavar="ASSETS", help="Comma-separated critical assets to path to (default: Tier-0)")
     g3.add_argument("--max-paths",    type=int, default=5, help="Max attack paths to show with --graph (default: 5)")
+    g3.add_argument("--keep",         metavar="SRC->DST", action="append",
+                    help="Access people need for their job, e.g. 'JDOE@CORP.LOCAL->HELPDESK@CORP.LOCAL'; "
+                         "remediation options never remove it (repeatable or comma-separated)")
 
     # ── Exploitation ──────────────────────────────────────────────────────
     g4 = parser.add_argument_group("💀 Exploitation")
@@ -363,6 +367,39 @@ _EDGE_STYLE = {
 }
 
 
+def _keep_list(args):
+    """--keep values, split on commas, in the order given."""
+    out = []
+    for item in getattr(args, "keep", None) or []:
+        out += [k.strip() for k in str(item).split(",") if k.strip()]
+    return out
+
+
+def _print_plans(plans, keep):
+    if keep:
+        console.print("  [dim]Kept as required (--keep): "
+                      + escape(", ".join(k.replace("->", " → ") for k in keep)) + "[/dim]")
+    if not plans:
+        if keep:
+            console.print("  [yellow]No set of changes breaks every route without removing "
+                          "access marked --keep.[/yellow]\n")
+        return
+    console.print("  [bold cyan]𓂀 Remediation options[/bold cyan] "
+                  "[dim](each breaks every route, including routes not shown — verified)[/dim]")
+    for i, p in enumerate(plans, 1):
+        n, m = len(p["changes"]), p["memberships_removed"]
+        mem = (f"removes {m} group membership{'s' if m != 1 else ''}" if m
+               else "no one leaves a group")
+        console.print(f"  [bold white]Option {i} · {escape(p['title'])}[/bold white]  "
+                      f"[dim]{n} change{'s' if n != 1 else ''} · {mem}[/dim]")
+        for c in p["changes"]:
+            console.print(f"    [green]✂[/green] {escape(c['fix'])}")
+            note = f" {c['note']}" if c.get("note") else ""
+            console.print(f"      [dim]{escape(c['effect'] + note)}[/dim]")
+    console.print("  [dim]Access someone needs for their job? Mark it with --keep 'SRC->DST' "
+                  "and HorusEye plans around it.[/dim]\n")
+
+
 def render_attack_paths(domain_data, args):
     """Build the attack graph, print the shortest path(s) to DA, and return the
     described paths for inclusion in reports."""
@@ -374,6 +411,10 @@ def render_attack_paths(domain_data, args):
     console.print(Rule(f"[bold red][ 𓂀 ATTACK PATHS TO {goal_label.upper()} ][/bold red]"))
     console.print()
     graph = AttackGraph(domain_data)
+    keep = _keep_list(args)
+    for a, b in graph.unmatched_keep(keep):
+        console.print(f"  [yellow]--keep {escape(a)}->{escape(b)} matches no relationship "
+                      f"in the data (check the names).[/yellow]")
     paths = graph.shortest_paths(owned=owned or None, max_paths=max(1, args.max_paths),
                                  targets=targets or None)
 
@@ -405,14 +446,17 @@ def render_attack_paths(domain_data, args):
 
     # Remediation impact: which single fix breaks the shortest path.
     impact = graph.remediation_impact(owned=owned or None, targets=targets or None,
-                                      max_paths=max(1, args.max_paths))
+                                      max_paths=max(1, args.max_paths), keep=keep)
     chokes = [h for h in impact if h["breaks_path"]]
     if chokes:
         console.print("  [bold cyan]𓂀 Remediation impact[/bold cyan] [dim](one fix breaks every route shown):[/dim]")
         for h in chokes:
+            req = "  [yellow](marked as required with --keep)[/yellow]" if h.get("kept") else ""
             console.print(f"    [green]✂[/green]  remove [bold]{h['type']}[/bold] "
-                          f"{h['from']} → {h['to']}  [dim](no alternative path remains)[/dim]")
+                          f"{h['from']} → {h['to']}  [dim](no alternative path remains)[/dim]{req}")
         console.print()
+    _print_plans(graph.remediation_plans(owned=owned or None, targets=targets or None,
+                                         keep=keep), keep)
     console.print(f"  [bold red]𓂀 {len(described)} path(s) to {goal_label}. "
                   f"Shortest: {described[0]['hops']} hop(s).[/bold red]\n")
     return described
@@ -493,19 +537,22 @@ def run_main_analysis(args, config, claude_key):
     if args.graph:
         graph_paths = render_attack_paths(domain_data, args)
         reporter.attack_paths = graph_paths
-    # The explorer needs the graph + remediation impact; compute quietly if the
-    # --graph view didn't already produce them.
-    if getattr(args, "explorer", None):
+    # Reports carry the remediation impact and options; the explorer also
+    # needs the paths. Compute quietly if the --graph view didn't produce them.
+    if args.graph or getattr(args, "explorer", None):
         from horuseye.core.graph import AttackGraph
         owned = [o.strip() for o in (args.owned or "").split(",") if o.strip()] or None
         targets = [t.strip() for t in (getattr(args, "target", "") or "").split(",") if t.strip()] or None
+        keep = _keep_list(args)
         g = AttackGraph(domain_data)
         if not reporter.attack_paths:
             reporter.attack_paths = [g.describe(p) for p in
                                      g.shortest_paths(owned=owned, targets=targets,
                                                       max_paths=max(1, args.max_paths))]
         reporter.remediation = g.remediation_impact(owned=owned, targets=targets,
-                                                    max_paths=max(1, args.max_paths))
+                                                    max_paths=max(1, args.max_paths), keep=keep)
+        reporter.remediation_plans = g.remediation_plans(owned=owned, targets=targets, keep=keep)
+        reporter.keep = keep
 
     # ── DA Checklist ─────────────────────────────────────────────────────
     if args.da_checklist:

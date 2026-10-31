@@ -209,7 +209,7 @@ horuseye/
 ├── reports/          # CLI / HTML / Markdown / JSON report generation
 ├── ai/               # optional Claude layer + local redaction (horuseye[ai])
 └── utils/            # config, dependency preflight, help
-tests/                # pytest suite — 117 tests (parsers, detector, graph,
+tests/                # pytest suite — 130 tests (parsers, detector, graph,
                       #   knowledge, noise, reports, diff, AI, schema,
                       #   provenance, determinism, redaction)
 docs/                 # screenshots and reference material
@@ -363,11 +363,50 @@ Path 1  (3 hops: BOB@CORP.LOCAL → SVC-ADM@CORP.LOCAL)
 
 Paths are included in the HTML report and rendered as Mermaid diagrams in the Markdown export. Richer paths need local-admin and session data — collect with `SharpHound.exe -c All`.
 
+### Remediation options — fix it without breaking someone's job
+
+The shortest fix is not always the right one. Removing a user from a group closes the routes, but it also takes away everything that group gives them, including access their job depends on. So after the paths, HorusEye compares **remediation options**. Each one is a different set of changes that **breaks every route**, including routes not shown, and is re-checked by search before it is reported:
+
+| Option | What it does |
+|---|---|
+| **Fewest changes** | The smallest set of changes that breaks every route |
+| **Keep group memberships** | Nobody is removed from a group; the groups' own permissions are narrowed instead |
+| **Fix nearest the targets** | Cuts the steps closest to the targets, so the foothold keeps as much access as possible |
+
+Every change says **who is affected and what they lose**: a removed membership lists every right the user loses with it (and warns that access granted outside AD, like file shares and apps, isn't in the data); a narrowed group permission lists every member who loses that one right.
+
+HorusEye can't know what someone needs for their job, so you tell it. Mark required access with `--keep`, and no option will ever remove it:
+
+```bash
+# The bundled example: JDOE needs to stay in HELPDESK
+horuseye --bloodhound examples/acme-lab --domain ACME.LAB --dc 10.10.0.5 --graph \
+    --owned 'JDOE@ACME.LAB' --keep 'JDOE@ACME.LAB->HELPDESK@ACME.LAB'
+```
+
+```
+𓂀 Remediation options (each breaks every route, including routes not shown — verified)
+Option 1 · Fewest changes  2 changes · no one leaves a group
+  ✂ Remove the password-reset right HELPDESK holds on HELPDESK-SVC.
+    HELPDESK's 2 members (HELPDESK-SVC, JDOE) lose only this right: reset HELPDESK-SVC's password.
+  ✂ Remove HELPDESK from the local Administrators group on WEB01.ACME.LAB (use Windows LAPS for local admin).
+    HELPDESK's 2 members (HELPDESK-SVC, JDOE) lose only this right: local admin on WEB01.ACME.LAB.
+Option 2 · Fix nearest the targets  2 changes · no one leaves a group
+  ✂ Remove HELPDESK from the local Administrators group on WEB01.ACME.LAB (use Windows LAPS for local admin).
+    HELPDESK's 2 members (HELPDESK-SVC, JDOE) lose only this right: local admin on WEB01.ACME.LAB.
+  ✂ Remove replication rights (Get-Changes / Get-Changes-All) from HELPDESK-SVC.
+    HELPDESK-SVC loses only this right: replicate domain secrets (DCSync).
+```
+
+Without `--keep`, option 1 is "Remove JDOE from HELPDESK" (one change), and the report spells out that JDOE would lose the password-reset right and local admin on WEB01 along with it.
+
+The options are in the explorer (pick one and the ✂ marks move on the graph), the HTML and Markdown reports, and the JSON (`remediation_plans`).
+
 | Flag | Purpose |
 |---|---|
 | `--graph` | Compute and print the shortest attack path(s) to Domain Admin |
 | `--owned PRINCIPALS` | Comma-separated foothold principals (default: any domain user) |
 | `--max-paths N` | Maximum node-diverse paths to show (default: 5) |
+| `--keep 'SRC->DST'` | Access people need for their job; remediation options never remove it (repeatable or comma-separated) |
 
 ---
 
@@ -787,6 +826,7 @@ Attack Paths:
   --owned PRINCIPALS    Comma-separated owned principals (default: any user)
   --target ASSETS       Critical assets to path to (default: Tier-0)
   --max-paths N         Max attack paths to show (default: 5)
+  --keep 'SRC->DST'     Required access remediation options must not remove
 
 AI + Output:
   --claude-key KEY      Anthropic API key
@@ -855,8 +895,9 @@ pip install -e ".[dev]"   # installs pytest
 pytest -q
 ```
 
-117 tests cover the BloodHound parser, the scorer, the full detection engine,
-noise reduction, the knowledge base, the attack-path graph, report exports, the
+130 tests cover the BloodHound parser, the scorer, the full detection engine,
+noise reduction, the knowledge base, the attack-path graph and remediation
+options, report exports, the
 retest diff, and the AI layer (with a fake SDK — no network). A regression guard
 fails if the detector ever stops emitting any of the 13 types or stops producing
 CRITICAL findings. CI runs the suite plus a `--help` / `--check-deps` smoke test

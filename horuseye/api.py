@@ -27,7 +27,8 @@ from horuseye.core.graph import AttackGraph
 from horuseye.core.knowledge import enrich, mitre_coverage
 from horuseye.core.path_scorer import PathScorer
 
-__all__ = ["detect", "attack_paths", "remediation_impact", "analyze", "parse_sources"]
+__all__ = ["detect", "attack_paths", "remediation_impact", "remediation_plans", "analyze",
+           "parse_sources"]
 
 
 def detect(domain_data: Dict) -> List[Dict]:
@@ -48,15 +49,25 @@ def attack_paths(domain_data: Dict, owned: Optional[List[str]] = None,
 
 def remediation_impact(domain_data: Dict, owned: Optional[List[str]] = None,
                        targets: Optional[List[str]] = None,
-                       max_paths: int = 5) -> List[Dict]:
+                       max_paths: int = 5, keep: Optional[List[str]] = None) -> List[Dict]:
     """Per-edge remediation impact across the displayed paths: which single
     relationship removal breaks every route (choke points)."""
     return AttackGraph(domain_data).remediation_impact(owned=owned, targets=targets,
-                                                       max_paths=max_paths)
+                                                       max_paths=max_paths, keep=keep)
+
+
+def remediation_plans(domain_data: Dict, owned: Optional[List[str]] = None,
+                      targets: Optional[List[str]] = None,
+                      keep: Optional[List[str]] = None) -> List[Dict]:
+    """Alternative fix plans that each break every route, with who loses what
+    access per change. ``keep`` (``["SRC->DST", ...]``) marks relationships
+    people need for their job; no plan removes them."""
+    return AttackGraph(domain_data).remediation_plans(owned=owned, targets=targets, keep=keep)
 
 
 def analyze(domain_data: Dict, owned: Optional[List[str]] = None,
-            targets: Optional[List[str]] = None, max_paths: int = 5) -> Dict:
+            targets: Optional[List[str]] = None, max_paths: int = 5,
+            keep: Optional[List[str]] = None) -> Dict:
     """One call: findings + ranked paths + a summary (counts + ATT&CK coverage)."""
     findings = detect(domain_data)
     severities = {}
@@ -66,7 +77,8 @@ def analyze(domain_data: Dict, owned: Optional[List[str]] = None,
     return {
         "findings": findings,
         "paths": attack_paths(domain_data, owned, targets, max_paths),
-        "remediation_impact": remediation_impact(domain_data, owned, targets, max_paths),
+        "remediation_impact": remediation_impact(domain_data, owned, targets, max_paths, keep),
+        "remediation_plans": remediation_plans(domain_data, owned, targets, keep),
         "summary": {
             "total": len(findings),
             "by_severity": severities,

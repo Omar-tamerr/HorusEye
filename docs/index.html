@@ -139,7 +139,7 @@
     <p class="lead">Thirteen attack-path detections, scored by real exploitability — each with the evidence behind it, the command to validate it, and the fix and detection to close it.</p>
     <div class="grid">
       <div class="card"><div class="ic">🗺️</div><h3>Shortest path to DA</h3><p>A deterministic graph from any foothold to Domain Admin across membership, ACLs, local-admin, sessions, DCSync and delegation — with the command for each step.</p></div>
-      <div class="card"><div class="ic">✂️</div><h3>Remediation impact</h3><p>Names the choke points — the single fixes that break every route, with no alternative left. Fix the right relationship, not all of them.</p></div>
+      <div class="card"><div class="ic">✂️</div><h3>Remediation options</h3><p>Names the choke point, then compares ways to break every route — fewest changes, keep group memberships, or fix nearest the targets — and shows who loses what access with each. Mark access people need with <code>--keep</code> and it is never proposed.</p></div>
       <div class="card"><div class="ic">🔎</div><h3>Evidence &amp; confidence</h3><p>Every finding carries the exact ACEs/objects behind it, a confidence level, and the source file — so it's reproducible, not a black box.</p></div>
       <div class="card"><div class="ic">🛡️</div><h3>Built for defenders too</h3><p>MITRE ATT&amp;CK mapping, concrete remediation steps, and detection guidance (event IDs) on every finding. One report, red and blue.</p></div>
       <div class="card"><div class="ic">🧭</div><h3>Offline explorer</h3><p>A single self-contained HTML file — dashboard, interactive attack graph, step-by-step walkthrough and filterable findings. No server; nothing leaves the file.</p></div>
@@ -161,7 +161,7 @@
         <tr><td>Interface</td><td>Web app with a REST API (API-first)</td><td class="he">CLI, a portable offline HTML report, and a Python API</td></tr>
         <tr><td>Deployment</td><td>Docker Compose: application, PostgreSQL and Neo4j</td><td class="he">One <code>pip install</code>, one runtime dependency (<code>rich</code>), no server</td></tr>
         <tr><td>Guidance</td><td>Edge documentation with abuse info, OPSEC notes and references</td><td class="he">Per finding: evidence, confidence, command, fix, detection, ATT&amp;CK</td></tr>
-        <tr><td>Remediation</td><td>Attack path management and remediation guidance in BloodHound Enterprise (commercial)</td><td class="he">Built-in choke-point analysis: the single fix that breaks every route</td></tr>
+        <tr><td>Remediation</td><td>Attack path management and remediation guidance in BloodHound Enterprise (commercial)</td><td class="he">Built-in choke-point analysis plus fix options that each break every route, showing who loses what access; required access can be kept</td></tr>
         <tr><td>Retest &amp; CI</td><td>Scriptable through the REST API</td><td class="he"><code>--diff</code> retests and <code>--fail-on</code> exit codes, built in</td></tr>
         <tr><td>License</td><td>Apache-2.0</td><td class="he">MIT</td></tr>
       </table>
