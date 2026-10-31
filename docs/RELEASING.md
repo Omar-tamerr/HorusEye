@@ -22,9 +22,12 @@ changes, MINOR for backward-compatible features, PATCH for fixes.
 9. **GitHub release** — paste the CHANGELOG section as the release notes.
 10. **Website** — the landing site lives in `docs/` (`index.html`, `assets/`,
     `demo.html`). Enable it once under **Settings → Pages → Source: `main` /
-    `/docs`**; it publishes to `https://omar-tamerr.github.io/HorusEye/`. Regenerate
-    the live demo when the explorer changes:
-    `SOURCE_DATE_EPOCH=1760000000 horuseye --bloodhound examples/acme-lab --domain ACME.LAB --dc 10.10.0.5 --no-ai --owned 'JDOE@ACME.LAB' --explorer docs/demo.html`.
+    `/docs`**; it publishes to `https://omar-tamerr.github.io/HorusEye/`. When the
+    explorer or the example data changes, rebuild the live demo with
+    `python scripts/build_demo.py`. When the branding changes, rebuild the
+    link-preview image with `python scripts/make_og_image.py` (needs Pillow).
+    After deploying, paste the site URL into LinkedIn's Post Inspector to
+    refresh any cached preview.
 
 ## Supported environments
 

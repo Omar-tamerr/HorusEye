@@ -4,6 +4,40 @@ All notable changes to HorusEye are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **Redesigned attack-path view in the explorer** (`--explorer`): a route picker,
+  node-type icons and FOOTHOLD/TARGET markers, readable relationship labels,
+  animated highlighting of the selected route, a step-by-step walkthrough with
+  copyable validation commands, an inspector for any node or relationship
+  (meaning, validation, remediation impact, fix, related findings), and a
+  "Fix this first" panel. The graph lays out left-to-right when it fits and
+  top-to-bottom otherwise, so it works on phones. Tabs are linkable
+  (`#overview`, `#paths`, `#findings`), and the logo is an inline SVG that
+  renders on every device.
+- Remediation impact now covers every edge on every displayed route, not only
+  the shortest one.
+- The CLI summary line and findings table now say "findings" instead of
+  "paths"/"Attack Path(s)" — they count findings, not attack paths.
+
+### Fixed
+- **Remediation impact could overstate choke points.** It removed the whole
+  node an edge pointed to instead of the edge itself, so a second route into
+  the same object was missed and an edge could be wrongly reported as the
+  single fix. It now removes exactly one relationship (parallel rights on the
+  same object stay distinct), with regression tests.
+
+### Added
+- `scripts/build_demo.py` rebuilds the website's live demo; demo-only extras
+  (back-to-home bar, "synthetic data" label, link-preview tags, Attack Paths as
+  the landing view) are opt-in and never appear in normal reports.
+- Website: link-preview image (`scripts/make_og_image.py`) and Open Graph /
+  Twitter tags, live release and CI badges, an SVG logo, and a comparison table
+  rewritten from SpecterOps' public documentation.
+- The `acme-lab` example now has two independent routes to domain control and a
+  single choke point.
+
 ## [2.3.0] - 2026-10-13
 
 A trust-and-evidence release: findings, graph and reports now stand behind
