@@ -154,3 +154,49 @@ def test_remediation_impact_sees_alternative():
     impact = AttackGraph(data).remediation_impact(owned=["BOB@CORP.LOCAL"])
     # The intermediate group on the chosen path has an alternative via the other.
     assert any(h["alternative_remains"] for h in impact)
+
+
+# ── Remediation impact: remove the edge, not the node ────────────────────────
+def test_second_route_into_same_node_is_not_a_choke_point():
+    # BOB→G1→X→DA and BOB→G2→X→DA. Removing the single edge G1→X leaves G2→X,
+    # so it is NOT a choke point. (The old node-ban logic wrongly said it was.)
+    data = _data(
+        groups=[{"name": "DOMAIN ADMINS@CORP.LOCAL", "admincount": True}],
+        acls=[{"principal": "BOB@CORP.LOCAL", "target": "G1@CORP.LOCAL", "right": "GenericAll"},
+              {"principal": "BOB@CORP.LOCAL", "target": "G2@CORP.LOCAL", "right": "GenericAll"},
+              {"principal": "G1@CORP.LOCAL", "target": "X@CORP.LOCAL", "right": "GenericAll"},
+              {"principal": "G2@CORP.LOCAL", "target": "X@CORP.LOCAL", "right": "GenericAll"},
+              {"principal": "X@CORP.LOCAL", "target": "DOMAIN ADMINS@CORP.LOCAL", "right": "GenericAll"}],
+    )
+    impact = {(h["from"], h["to"]): h for h in
+              AttackGraph(data).remediation_impact(owned=["BOB@CORP.LOCAL"])}
+    into_x = [h for (f, t), h in impact.items() if t == "X@CORP.LOCAL"]
+    assert into_x and all(h["alternative_remains"] for h in into_x)
+    # The last hop X→DA is the only way in, so it IS a choke point.
+    assert impact[("X@CORP.LOCAL", "DOMAIN ADMINS@CORP.LOCAL")]["breaks_path"]
+
+
+def test_parallel_rights_are_separate_edges():
+    # BOB has GenericAll AND WriteDacl on DA: removing one right leaves the other.
+    data = _data(
+        groups=[{"name": "DOMAIN ADMINS@CORP.LOCAL", "admincount": True}],
+        acls=[{"principal": "BOB@CORP.LOCAL", "target": "DOMAIN ADMINS@CORP.LOCAL", "right": "GenericAll"},
+              {"principal": "BOB@CORP.LOCAL", "target": "DOMAIN ADMINS@CORP.LOCAL", "right": "WriteDacl"}],
+    )
+    impact = AttackGraph(data).remediation_impact(owned=["BOB@CORP.LOCAL"])
+    assert impact and all(h["alternative_remains"] for h in impact)
+
+
+def test_impact_covers_every_displayed_path():
+    data = _data(
+        groups=[{"name": "DOMAIN ADMINS@CORP.LOCAL", "admincount": True}],
+        acls=[{"principal": "BOB@CORP.LOCAL", "target": "G1@CORP.LOCAL", "right": "GenericAll"},
+              {"principal": "G1@CORP.LOCAL", "target": "DOMAIN ADMINS@CORP.LOCAL", "right": "GenericAll"},
+              {"principal": "BOB@CORP.LOCAL", "target": "G2@CORP.LOCAL", "right": "GenericAll"},
+              {"principal": "G2@CORP.LOCAL", "target": "DOMAIN ADMINS@CORP.LOCAL", "right": "GenericAll"}],
+    )
+    g = AttackGraph(data)
+    path_edges = {(g.display[e.src], g.display[e.dst])
+                  for p in g.shortest_paths(owned=["BOB@CORP.LOCAL"]) for e in p}
+    impact_edges = {(h["from"], h["to"]) for h in g.remediation_impact(owned=["BOB@CORP.LOCAL"])}
+    assert path_edges and path_edges == impact_edges

@@ -47,9 +47,12 @@ def attack_paths(domain_data: Dict, owned: Optional[List[str]] = None,
 
 
 def remediation_impact(domain_data: Dict, owned: Optional[List[str]] = None,
-                       targets: Optional[List[str]] = None) -> List[Dict]:
-    """Per-edge remediation impact for the shortest path (choke points)."""
-    return AttackGraph(domain_data).remediation_impact(owned=owned, targets=targets)
+                       targets: Optional[List[str]] = None,
+                       max_paths: int = 5) -> List[Dict]:
+    """Per-edge remediation impact across the displayed paths: which single
+    relationship removal breaks every route (choke points)."""
+    return AttackGraph(domain_data).remediation_impact(owned=owned, targets=targets,
+                                                       max_paths=max_paths)
 
 
 def analyze(domain_data: Dict, owned: Optional[List[str]] = None,
@@ -63,7 +66,7 @@ def analyze(domain_data: Dict, owned: Optional[List[str]] = None,
     return {
         "findings": findings,
         "paths": attack_paths(domain_data, owned, targets, max_paths),
-        "remediation_impact": remediation_impact(domain_data, owned, targets),
+        "remediation_impact": remediation_impact(domain_data, owned, targets, max_paths),
         "summary": {
             "total": len(findings),
             "by_severity": severities,

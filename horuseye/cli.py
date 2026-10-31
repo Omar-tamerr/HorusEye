@@ -404,10 +404,11 @@ def render_attack_paths(domain_data, args):
         console.print()
 
     # Remediation impact: which single fix breaks the shortest path.
-    impact = graph.remediation_impact(owned=owned or None, targets=targets or None)
+    impact = graph.remediation_impact(owned=owned or None, targets=targets or None,
+                                      max_paths=max(1, args.max_paths))
     chokes = [h for h in impact if h["breaks_path"]]
     if chokes:
-        console.print("  [bold cyan]𓂀 Remediation impact[/bold cyan] [dim](break the shortest path):[/dim]")
+        console.print("  [bold cyan]𓂀 Remediation impact[/bold cyan] [dim](one fix breaks every route shown):[/dim]")
         for h in chokes:
             console.print(f"    [green]✂[/green]  remove [bold]{h['type']}[/bold] "
                           f"{h['from']} → {h['to']}  [dim](no alternative path remains)[/dim]")
@@ -461,7 +462,7 @@ def run_main_analysis(args, config, claude_key):
 
     crit = len([f for f in scored if f.get("severity") == "CRITICAL"])
     high = len([f for f in scored if f.get("severity") == "HIGH"])
-    console.print(f"\n  [bold red]𓂀 {len(scored)} paths — {crit} CRITICAL, {high} HIGH[/bold red]\n")
+    console.print(f"\n  [bold red]𓂀 {len(scored)} findings — {crit} CRITICAL, {high} HIGH[/bold red]\n")
 
     # ── AI analysis ──────────────────────────────────────────────────────
     if not args.no_ai and claude_key:
@@ -503,7 +504,8 @@ def run_main_analysis(args, config, claude_key):
             reporter.attack_paths = [g.describe(p) for p in
                                      g.shortest_paths(owned=owned, targets=targets,
                                                       max_paths=max(1, args.max_paths))]
-        reporter.remediation = g.remediation_impact(owned=owned, targets=targets)
+        reporter.remediation = g.remediation_impact(owned=owned, targets=targets,
+                                                    max_paths=max(1, args.max_paths))
 
     # ── DA Checklist ─────────────────────────────────────────────────────
     if args.da_checklist:

@@ -17,6 +17,7 @@ A handful of deliberately planted weaknesses:
 | `OLD-ADMIN@ACME.LAB` | Disabled but still admin-flagged |
 | `ACME.LAB ↔ PARTNER.LAB` | Bidirectional forest trust |
 | `HELPDESK` group | Local admin on `WEB01`, where a DA has a session |
+| `HELPDESK` group | Can reset `HELPDESK-SVC`'s password (ForceChangePassword) |
 
 ## Run it
 
@@ -32,19 +33,22 @@ horuseye --bloodhound examples/acme-lab --domain ACME.LAB --dc 10.10.0.5 \
 
 ## Expected result
 
-- **7 findings, 2 CRITICAL** (DCSync, unconstrained delegation) and several HIGH.
-- An attack path:
+- **8 findings: 2 CRITICAL** (DCSync, unconstrained delegation), **5 HIGH**, 1 LOW.
+- **Two attack routes** from `JDOE` to domain control:
 
   ```
-  JDOE@ACME.LAB
-    │ MemberOf   → HELPDESK@ACME.LAB
-    │ AdminTo    → WEB01.ACME.LAB
-    │ HasSession → ADMINISTRATOR@ACME.LAB   (Domain Admin)
+  Route 1   JDOE ─MemberOf→ HELPDESK ─ForceChangePassword→ HELPDESK-SVC ─DCSync→ ACME.LAB
+  Route 2   JDOE ─MemberOf→ HELPDESK ─AdminTo→ WEB01 ─HasSession→ ADMINISTRATOR
   ```
 
-- **Remediation impact** names each edge as a choke point (removing any one
-  breaks the path), so the fix is obvious: get the Domain Admin off `WEB01`,
-  or remove `HELPDESK`'s local-admin rights there.
+- **Remediation impact** finds **one choke point**: removing `JDOE` from
+  `HELPDESK` breaks both routes. Every other fix (the reset right, the DCSync
+  grant, the local-admin rights, the admin session) closes one route but leaves
+  the other open — which is exactly why the choke point is the fix to make first.
+
+The same report runs on the website as the
+[live demo](https://omar-tamerr.github.io/HorusEye/demo.html), rebuilt with
+`python scripts/build_demo.py`.
 
 > Generate larger synthetic domains for benchmarking with
 > `python scripts/benchmark.py`, which uses `horuseye.synthetic`.

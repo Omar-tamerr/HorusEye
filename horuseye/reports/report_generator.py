@@ -299,7 +299,7 @@ class ReportGenerator:
     def _print_rich(self, findings: list):
         self.console.print()
         t = Table(box=box.DOUBLE_EDGE, show_header=True,
-                  title=f"[bold red]𓂀 {len(findings)} Attack Path(s)[/bold red]",
+                  title=f"[bold red]𓂀 {len(findings)} Finding(s)[/bold red]",
                   border_style="red")
         t.add_column("Severity", style="bold", width=10)
         t.add_column("Score", justify="right", width=5)

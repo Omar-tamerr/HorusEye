@@ -189,10 +189,19 @@ class AttackGraph:
         names = "→".join(e.dst for e in path)
         return (len(path), inferred, names)
 
-    def _bfs(self, starts: Set[str], goals: Set[str], banned: Set[str]) -> List[Edge]:
+    @staticmethod
+    def edge_key(e: Edge) -> tuple:
+        """Identity of one relationship: who, to whom, what kind, which right.
+        Parallel edges (e.g. GenericAll and WriteDacl on the same object) stay
+        distinct, so removing one doesn't silently remove the other."""
+        return (e.src, e.dst, e.type, e.detail)
+
+    def _bfs(self, starts: Set[str], goals: Set[str], banned: Set[str],
+             banned_edges: Optional[Set[tuple]] = None) -> List[Edge]:
+        banned_edges = banned_edges or set()
         q = deque()
         seen = set()
-        for s in starts:
+        for s in sorted(starts):          # sorted → deterministic across runs
             if s not in banned:
                 q.append(s)
                 seen.add(s)
@@ -202,6 +211,8 @@ class AttackGraph:
             if node in goals:
                 return self._reconstruct(node, prev)
             for e in self.adj.get(node, []):
+                if banned_edges and self.edge_key(e) in banned_edges:
+                    continue              # this one relationship is removed
                 if e.dst in seen or e.dst in banned:
                     continue
                 seen.add(e.dst)
@@ -219,29 +230,38 @@ class AttackGraph:
 
     # ── Remediation impact ─────────────────────────────────────────────────────
     def remediation_impact(self, owned: Optional[List[str]] = None,
-                           targets: Optional[List[str]] = None) -> List[Dict]:
-        """For each edge on the shortest path, determine whether removing it
-        disconnects the foothold from the target (a 'choke point' — the
-        highest-value fix) and whether any alternative path remains.
+                           targets: Optional[List[str]] = None,
+                           max_paths: int = 5) -> List[Dict]:
+        """For every edge on the displayed attack paths, remove just that one
+        relationship and check whether the foothold can still reach *any*
+        target. If it can't, the edge is a choke point — a single fix that
+        breaks every route. Otherwise an alternative path remains.
 
-        Returns ``[{from, to, type, breaks_path, alternative_remains}]`` ordered
-        as the path is walked. Empty if there is no path."""
+        Only the edge itself is removed (not the node it points to), so a
+        second route into the same object is correctly counted as an
+        alternative. Returns ``[{from, to, type, detail, breaks_path,
+        alternative_remains}]`` in path order; empty if there is no path."""
         starts, goals = self.start_nodes(owned), self.goal_nodes(targets)
-        base = self._bfs(starts, {g for g in goals}, set())
-        if not base:
+        paths = self.shortest_paths(owned=owned, max_paths=max_paths, targets=targets)
+        if not paths:
             return []
         starts = {s for s in starts if s not in goals}
-        out = []
-        for e in base:
-            cut = {e.dst}  # removing the node that this edge grants control of
-            remains = bool(self._bfs(starts, goals, cut))
-            out.append({
-                "from": self.display.get(e.src, e.src),
-                "to": self.display.get(e.dst, e.dst),
-                "type": e.type,
-                "breaks_path": not remains,
-                "alternative_remains": remains,
-            })
+        out, done = [], set()
+        for path in paths:
+            for e in path:
+                key = self.edge_key(e)
+                if key in done:
+                    continue
+                done.add(key)
+                remains = bool(self._bfs(starts, goals, set(), banned_edges={key}))
+                out.append({
+                    "from": self.display.get(e.src, e.src),
+                    "to": self.display.get(e.dst, e.dst),
+                    "type": e.type,
+                    "detail": e.detail,
+                    "breaks_path": not remains,
+                    "alternative_remains": remains,
+                })
         return out
 
     # ── Rendering helpers ─────────────────────────────────────────────────────
