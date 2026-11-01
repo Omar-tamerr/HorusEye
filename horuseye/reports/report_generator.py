@@ -37,6 +37,7 @@ class ReportGenerator:
         self.remediation = []         # per-edge remediation impact for the shortest path
         self.remediation_plans = []   # alternative fix plans, each breaking every route
         self.keep = []                # relationships marked business-required (--keep)
+        self.conditional_paths = []   # routes needing an assumed / not-assessed step
         # Timestamp is injectable so reports are byte-reproducible for the same
         # input + config (e.g. CI sets SOURCE_DATE_EPOCH). Defaults to now.
         self.generated_at = generated_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -185,18 +186,32 @@ class ReportGenerator:
   {f'<div class="lab">Detection</div><ul>{det}</ul>' if det else ''}
 </div>"""
 
+    @staticmethod
+    def _html_chain(p: dict) -> str:
+        chain = f'<span class="hop">{html.escape(p["start"])}</span>'
+        for s in p["steps"]:
+            trust = s.get("trust", "observed")
+            tag = "" if trust == "observed" else f" ({html.escape(trust.replace('_', ' '))})"
+            chain += (f' <span class="edge">──{html.escape(s["type"])}{tag}──▶</span> '
+                      f'<span class="hop">{html.escape(s["to"])}</span>')
+        return chain
+
     def _html_paths(self) -> str:
-        if not self.attack_paths:
-            return ""
-        blocks = ""
-        for i, p in enumerate(self.attack_paths, 1):
-            chain = f'<span class="hop">{html.escape(p["start"])}</span>'
-            for s in p["steps"]:
-                chain += (f' <span class="edge">──{html.escape(s["type"])}──▶</span> '
-                          f'<span class="hop">{html.escape(s["to"])}</span>')
-            blocks += (f'<div class="path"><b>Path {i}</b> '
-                       f'<span class="meta">({p["hops"]} hop(s))</span><br>{chain}</div>')
-        return f"<h2>Attack Paths to Domain Admin</h2>{blocks}" + self._html_plans()
+        out = ""
+        if self.attack_paths:
+            blocks = "".join(
+                f'<div class="path"><b>Path {i}</b> <span class="meta">({p["hops"]} hop(s))'
+                f'</span><br>{self._html_chain(p)}</div>'
+                for i, p in enumerate(self.attack_paths, 1))
+            out = f"<h2>Attack Paths to Domain Admin</h2>{blocks}" + self._html_plans()
+        if self.conditional_paths:
+            blocks = "".join(
+                f'<div class="path"><b>{html.escape(p["label"])}</b> <span class="meta">'
+                f'({html.escape(p["rationale"])})</span><br>{self._html_chain(p)}</div>'
+                for p in self.conditional_paths)
+            out += ('<h2>Conditional Routes</h2><p class="meta">These need a step that is assumed '
+                    'or not assessed. They are not counted as attack paths.</p>' + blocks)
+        return out
 
     @staticmethod
     def _plan_meta(p: dict) -> str:
@@ -263,6 +278,17 @@ class ReportGenerator:
                             out.append(f"  ```bash\n  {line}\n  ```")
                 out.append("")
 
+        if self.conditional_paths:
+            out += ["## Conditional Routes", "",
+                    "These need a step that is assumed or not assessed. They are not counted as "
+                    "attack paths.", ""]
+            for p in self.conditional_paths:
+                out += [f"### {p['label']}", "", f"*{p['rationale']}*", ""]
+                for s in p["steps"]:
+                    trust = s.get("trust", "observed").replace("_", " ")
+                    out.append(f"- **{s['type']}** ({trust}) → `{s['to']}` — {s['detail']}")
+                out += [""] + [f"> Assumption: {a}" for a in p["assumptions"]] + [""]
+
         if self.remediation_plans:
             out += ["## Remediation Options", "",
                     "Each option breaks every route in the imported graph, including routes "
@@ -328,6 +354,7 @@ class ReportGenerator:
             },
             "parse_report": self.domain_data.get("parse_report", {}),
             "attack_paths": self.attack_paths,
+            "conditional_paths": self.conditional_paths,
             "remediation_plans": self.remediation_plans,
             "keep": self.keep,
             "findings": self.findings,

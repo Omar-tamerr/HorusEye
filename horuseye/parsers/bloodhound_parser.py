@@ -96,6 +96,7 @@ class BloodHoundParser:
                     "dontreqpreauth":  self._bool(self._prop(obj, "dontreqpreauth")),
                     "unconstrained_delegation": self._bool(self._prop(obj, "unconstrained")),
                     "pwdneverexpires": self._bool(self._prop(obj, "pwdneverexpires")),
+                    "sid":             self._objectid(obj),
                     "source":          "bloodhound",
                 }
                 if entry["name"] not in seen_names:

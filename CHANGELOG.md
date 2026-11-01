@@ -43,13 +43,31 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   remediation option removes it, and a choke point that is kept is labelled as
   such. A `--keep` that matches nothing in the data is flagged as a likely typo.
 - `api.remediation_plans()`; `api.analyze(..., keep=)` includes the options.
-- **Draft fixtures for a web app → AD service account import**
-  (`examples/acme-lab-webapp/`): one lab app running as `ACME\WEB-SVC`, with
-  the claims *exposed*, *uses_account* and *privileges_obtainable* kept
-  separate, in two variants (with and without execution evidence). Fixture
-  checks run now; the importer's acceptance tests are pending until the
-  format is agreed. The `acme-lab` data gains `WEB-SVC` (local admin on
-  `WEB01`); the demo's findings, routes and fix options are unchanged.
+- **Web app → AD service account import, milestone 1** (`--webapps FILE`,
+  draft format `horuseye.webapps/1-draft`, designed with Adrian Korwel).
+  Three separate, evidence-backed claims per app: *reachable from vantage*,
+  *uses account*, *privileges obtainable*. Claims cite evidence by id; one
+  request-linked execution record can support both of the last two.
+  - Importing never marks the account as owned. Without a confirmed third
+    claim, routes through the account are reported separately as
+    **conditional** ("Hypothetical: if WEB-SVC is compromised"), and the claim
+    keeps its `not_assessed` status. An explicit `assumed` claim needs a
+    rationale.
+  - New trust levels `validated` (demonstrated, with evidence) and `assumed`.
+    Even on a validated route, AD steps keep their own label.
+  - A distinct `Reaches` step for vantage → app: reachability, not control,
+    and never proposed as a fix.
+  - Strict validation with explicit errors: unique evidence ids, references
+    resolved within the app, `triggered_by` must be a request, execution SID
+    and host must match the mapping, no credential-like fields or raw
+    response bodies (a safeguard only: evidence must be sanitized). A mapping
+    binds to the directory by SID, never by name; config/execution conflicts
+    are surfaced, not resolved.
+  - Every relationship now has a stable id (e.g. `AdminTo:WEB-SVC->WEB01.ACME.LAB`).
+  - Two lab fixtures (`examples/acme-lab-webapp/`) with and without execution
+    evidence. `acme-lab` gains `WEB-SVC` (local admin on `WEB01`); the demo's
+    findings, routes and fix options are unchanged.
+  - BloodHound user records now keep their SID.
 - `scripts/build_demo.py` rebuilds the website's live demo; demo-only extras
   (back-to-home bar, "synthetic data" label, link-preview tags, Attack Paths as
   the landing view) are opt-in and never appear in normal reports.

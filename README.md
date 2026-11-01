@@ -352,6 +352,18 @@ The options are in the explorer (pick one and the ✂ marks move on the graph), 
 | `--owned PRINCIPALS` | Comma-separated foothold principals (default: any domain user) |
 | `--max-paths N` | Maximum node-diverse paths to show (default: 5) |
 | `--keep 'SRC->DST'` | Access people need for their job; remediation options never remove it (repeatable or comma-separated) |
+| `--webapps FILE` | Web app → AD service account claims (draft format, see below) |
+
+### Web app → AD service account (draft, milestone 1)
+
+`--webapps FILE` links a web app to the AD account it runs as, using three separate,
+evidence-backed claims: the app is **reachable from** a named assessment vantage, it
+**uses** the account, and an attacker **can obtain** the account's privileges through it.
+Only the third makes the route real: without it, routes through the account are shown
+separately as *conditional* ("if WEB-SVC is compromised") and the account is never
+marked as owned. Even with it, only the web steps are labelled `validated`; the AD steps
+after the account stay graph-derived. Format, validation rules and the two lab fixtures:
+[`examples/acme-lab-webapp`](examples/acme-lab-webapp). Designed with Adrian Korwel.
 
 ---
 
@@ -435,6 +447,7 @@ AD Input Sources:
   --cme FILE            CrackMapExec output file
   --nxc FILE            NetExec (nxc) output — modern CrackMapExec replacement
   --certipy FILE        Certipy JSON output
+  --webapps FILE        Web app → AD service account claims (horuseye.webapps/1-draft)
   --manual              Interactive manual input mode
 
 Target:
@@ -534,7 +547,7 @@ horuseye/
 ├── reports/          # CLI / HTML / Markdown / JSON report generation
 ├── ai/               # optional Claude layer + local redaction (horuseye[ai])
 └── utils/            # config, dependency preflight, help
-tests/                # pytest suite — 137 tests (parsers, detector, graph,
+tests/                # pytest suite — 163 tests (parsers, detector, graph,
                       #   knowledge, noise, reports, diff, AI, schema,
                       #   provenance, determinism, redaction)
 docs/                 # screenshots and reference material
@@ -564,7 +577,7 @@ pip install -e ".[dev]"   # installs pytest
 pytest -q
 ```
 
-137 tests cover the BloodHound parser, the scorer, the full detection engine,
+163 tests cover the BloodHound parser, the scorer, the full detection engine,
 noise reduction, the knowledge base, the attack-path graph and remediation
 options, report exports, the
 retest diff, and the AI layer (with a fake SDK — no network). A regression guard

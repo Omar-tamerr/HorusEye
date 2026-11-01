@@ -1,33 +1,59 @@
-"""Draft web app → AD service account import (examples/acme-lab-webapp).
+"""Web app → AD service account import, milestone 1 (examples/acme-lab-webapp).
 
-The fixture checks run today. The acceptance tests describe how the importer
-must behave once the format is agreed; they are expected to fail until it
-exists (strict xfail, so they flag themselves when it lands).
+Two fixtures share one app/account mapping; only the execution evidence for
+claim 3 differs. These tests pin down the agreed behaviour: claims 1 and 2 never
+make the account owned, routes without claim 3 stay conditional, claim 3
+validates only the web steps, reachability is not control, and invalid
+evidence fails the import.
 """
+import copy
 import json
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 from horuseye import api
 from horuseye.core.graph import AttackGraph
+from horuseye.parsers.webapps import WebappImportError, load_webapps
 
 ROOT = Path(__file__).resolve().parent.parent
 LAB = ROOT / "examples" / "acme-lab"
 FIX = ROOT / "examples" / "acme-lab-webapp"
 UNCONFIRMED, CONFIRMED = FIX / "portal-unconfirmed.json", FIX / "portal-confirmed.json"
 ACCOUNT = "WEB-SVC@ACME.LAB"
-PENDING = pytest.mark.xfail(strict=True, reason="web app importer not built yet: format under "
-                                                "discussion in the GitHub issue")
 
 
 def _load(path):
-    return json.loads(path.read_text(encoding="utf-8"))
+    return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
 def _lab():
     return api.parse_sources(bloodhound=str(LAB), domain="ACME.LAB", dc="10.10.0.5")
+
+
+def _imported(path):
+    data = _lab()
+    load_webapps(str(path), data)
+    return data, AttackGraph(data)
+
+
+def _variant(tmp_path, base, mutate, name="variant.json"):
+    doc = copy.deepcopy(_load(base))
+    mutate(doc)
+    out = tmp_path / name
+    out.write_text(json.dumps(doc), encoding="utf-8")
+    return out
+
+
+def _app(doc):
+    return doc["apps"][0]
+
+
+def _ev(doc, eid):
+    return next(e for e in _app(doc)["evidence"] if e["id"] == eid)
 
 
 def _walk(node, path=""):
@@ -40,130 +66,218 @@ def _walk(node, path=""):
             yield from _walk(v, f"{path}[{i}]")
 
 
-# ── Fixture checks (run today) ───────────────────────────────────────────────
+# ── The fixtures themselves ──────────────────────────────────────────────────
 def test_fixtures_share_the_mapping_and_differ_only_in_claim_3():
     a, b = _load(UNCONFIRMED), _load(CONFIRMED)
     assert a["schema"] == b["schema"] == "horuseye.webapps/1-draft"
-    (app_a,), (app_b,) = a["apps"], b["apps"]
-    for key in ("id", "name", "host", "url"):
-        assert app_a[key] == app_b[key]
-    for claim in ("exposed", "uses_account"):
-        assert app_a["claims"][claim] == app_b["claims"][claim]
-    assert app_a["claims"]["uses_account"]["account"]["name"] == ACCOUNT
-    assert app_a["claims"]["privileges_obtainable"] == {"status": "not_assessed", "evidence": []}
-    assert app_b["claims"]["privileges_obtainable"]["status"] == "confirmed"
+    assert a["vantages"] == b["vantages"]
+    for key in ("id", "name", "host", "url", "account"):
+        assert _app(a)[key] == _app(b)[key]
+    for claim in ("reachable_from_vantage", "uses_account"):
+        assert _app(a)["claims"][claim] == _app(b)["claims"][claim]
+    assert _app(b)["evidence"][:len(_app(a)["evidence"])] == _app(a)["evidence"]
+    assert _app(a)["claims"]["privileges_obtainable"]["status"] == "not_assessed"
+    assert _app(b)["claims"]["privileges_obtainable"]["status"] == "confirmed"
 
 
 def test_fixtures_carry_no_credential_values():
-    banned_keys = re.compile(r"pass(word|wd)?|secret|token|cookie|hash|ticket|api_?key|private_?key|^ntlm?$",
-                             re.I)
-    banned_values = re.compile(r"(?<![0-9a-f])[0-9a-f]{32}(?![0-9a-f])|\$krb5|-----BEGIN|password\s*[=:]",
-                               re.I)
+    secret = re.compile(r"(?<![0-9a-f])[0-9a-f]{32}(?![0-9a-f])|\$krb5|-----BEGIN|password\s*[=:]", re.I)
     for path in (UNCONFIRMED, CONFIRMED):
-        for where, key, value in _walk(_load(path)):
-            assert not banned_keys.search(key), f"{path.name}{where}"
+        for where, _key, value in _walk(_load(path)):
             if isinstance(value, str):
-                assert not banned_values.search(value), f"{path.name}{where}"
-
-
-def test_claim_statuses_match_their_evidence():
-    for path in (UNCONFIRMED, CONFIRMED):
-        for claim in _load(path)["apps"][0]["claims"].values():
-            assert claim["status"] in {"confirmed", "assumed", "not_assessed"}
-            if claim["status"] == "confirmed":
-                assert claim["evidence"], f"{path.name}: confirmed claim without evidence"
-            else:
-                assert not claim["evidence"]
-
-
-def test_execution_evidence_links_to_its_request_and_the_account_sid():
-    claims = _load(CONFIRMED)["apps"][0]["claims"]
-    sid = claims["uses_account"]["account"]["sid"]
-    ev = claims["privileges_obtainable"]["evidence"]
-    requests = {e["id"] for e in ev if e["type"] == "http_request"}
-    (execution,) = [e for e in ev if e["type"] == "execution_identity"]
-    assert execution["triggered_by"] in requests
-    assert execution["effective_sid"] == sid
-
-
-def test_account_sid_matches_the_synthetic_directory():
-    users = _load(LAB / "users.json")["data"]
-    sids = {u["Properties"]["name"]: u["ObjectIdentifier"] for u in users}
-    for path in (UNCONFIRMED, CONFIRMED):
-        account = _load(path)["apps"][0]["claims"]["uses_account"]["account"]
-        assert sids[account["name"]] == account["sid"]
+                assert not secret.search(value), f"{path.name}{where}"
 
 
 def test_known_path_from_the_account_in_the_synthetic_directory():
     g = AttackGraph(_lab())
-    paths = g.shortest_paths(owned=[ACCOUNT])
-    assert paths, "WEB-SVC should have a route to Domain Admin in acme-lab"
-    first = g.describe(paths[0])
+    first = g.describe(g.shortest_paths(owned=[ACCOUNT])[0])
     assert [s["type"] for s in first["steps"]] == ["AdminTo", "HasSession"]
     assert first["goal"] == "ADMINISTRATOR@ACME.LAB"
-    assert all(s["trust"] == "observed" for s in first["steps"])
 
 
-def test_account_is_not_owned_by_default():
-    # Without an import (and without --owned), WEB-SVC is not a foothold.
-    assert "WEB-SVC" not in AttackGraph(_lab()).start_nodes()
+def test_directory_users_keep_their_sid():
+    users = {u["name"]: u.get("sid") for u in _lab()["users"]}
+    assert users[ACCOUNT] == "S-1-5-21-ACME-1106"
 
 
-# ── Acceptance tests for the importer (proposed API, names may change) ───────
-def _imported(path):
-    from horuseye.parsers.webapps import load_webapps   # proposed
-    data = _lab()
-    load_webapps(str(path), data)
-    return data, AttackGraph(data)
-
-
-@PENDING
+# ── Agreed behaviour ─────────────────────────────────────────────────────────
 def test_claims_1_and_2_do_not_make_the_account_owned():
     _, g = _imported(UNCONFIRMED)
     assert "WEB-SVC" not in g.start_nodes()
-    assert not g.shortest_paths()          # no normal route without claim 3
+    assert g.start_nodes() == {"VANTAGE:LAB-TESTER-1"}
+    assert g.shortest_paths() == []             # no normal route without claim 3
+    assert g.remediation_plans() == []          # nothing proven, nothing to fix yet
 
 
-@PENDING
-def test_without_claim_3_routes_are_conditional():
-    _, g = _imported(UNCONFIRMED)
-    routes = [g.describe(p) for p in g.conditional_paths()]
-    assert routes
-    r = routes[0]
-    assert r["conditional"] is True
-    assert ACCOUNT in " ".join(r["assumptions"])
-    assert [s["trust"] for s in r["steps"]][:2] == ["validated", "assumed"]
-    assert f"if {ACCOUNT} is compromised".lower() in r["label"].lower()
+def test_without_claim_3_routes_are_conditional_and_the_claim_stays_not_assessed():
+    data, g = _imported(UNCONFIRMED)
+    (route,) = [g.describe(p) for p in g.conditional_paths()]
+    assert route["conditional"] is True
+    assert route["label"] == f"Hypothetical: if {ACCOUNT} is compromised"
+    assert route["assumptions"] == [f"{ACCOUNT} is compromised through APP:acme-portal (not assessed)"]
+    assert [s["trust"] for s in route["steps"]] == ["validated", "not_assessed", "observed", "observed"]
+    assert "not proven" in route["rationale"]
+    # Showing the what-if route never turns the claim into an assumption.
+    assert data["webapps"][0]["claims"]["privileges_obtainable"]["status"] == "not_assessed"
 
 
-@PENDING
 def test_with_claim_3_only_the_web_steps_are_validated():
     _, g = _imported(CONFIRMED)
-    routes = [g.describe(p) for p in g.shortest_paths()]
-    assert routes and routes[0]["conditional"] is False
-    trust = [s["trust"] for s in routes[0]["steps"]]
-    assert trust[:2] == ["validated", "validated"]
-    assert set(trust[2:]) <= {"observed", "inferred"}   # AD steps stay graph-derived
-    assert "WEB-SVC" not in g.start_nodes()             # still never "owned"
+    (route,) = [g.describe(p) for p in g.shortest_paths()]
+    assert route["conditional"] is False and route["assumptions"] == []
+    assert [s["type"] for s in route["steps"]] == ["Reaches", "ExecutesAs", "AdminTo", "HasSession"]
+    assert [s["trust"] for s in route["steps"]] == ["validated", "validated", "observed", "observed"]
+    assert route["steps"][1]["evidence"] == ["req-2", "exec-1"]
+    assert route["validated_steps"] == 2
+    assert "WEB-SVC" not in g.start_nodes()     # still never "owned"
+    assert g.conditional_paths() == []
 
 
-@PENDING
-def test_credential_fields_are_rejected(tmp_path):
-    from horuseye.parsers.webapps import load_webapps   # proposed
-    doc = _load(CONFIRMED)
-    doc["apps"][0]["claims"]["uses_account"]["account"]["password"] = "x"
-    bad = tmp_path / "bad.json"
-    bad.write_text(json.dumps(doc), encoding="utf-8")
-    with pytest.raises(ValueError):
-        load_webapps(str(bad), _lab())
+def test_reachability_is_not_control():
+    _, g = _imported(CONFIRMED)
+    route = g.describe(g.shortest_paths()[0])
+    assert route["steps"][0]["kind"] == "reachability"
+    assert all(s["kind"] == "control" for s in route["steps"][1:])
+    plans = g.remediation_plans()
+    assert plans and all(c["type"] != "Reaches" for p in plans for c in p["changes"])
+    assert all(h["type"] != "Reaches" for h in g.remediation_impact())
+    fixes = [c["fix"] for p in plans for c in p["changes"]]
+    assert any(f.startswith("Fix the vulnerable endpoint in acme-portal") for f in fixes)
+    assert any("WEB-SVC from the local Administrators group on WEB01" in f for f in fixes)
 
 
-@PENDING
-def test_sid_mismatch_does_not_bind_the_account(tmp_path):
-    doc = _load(CONFIRMED)
-    doc["apps"][0]["claims"]["uses_account"]["account"]["sid"] = "S-1-5-21-ACME-9999"
-    bad = tmp_path / "mismatch.json"
-    bad.write_text(json.dumps(doc), encoding="utf-8")
-    data, g = _imported(bad)
-    assert not g.shortest_paths() and not g.conditional_paths()
-    assert any("WEB-SVC" in w for w in data["parse_report"]["warnings"])
+def test_explicit_assumption_is_labelled_with_its_rationale(tmp_path):
+    def assume(doc):
+        _app(doc)["claims"]["privileges_obtainable"] = {
+            "status": "assumed", "evidence": [],
+            "rationale": "Same framework version as a known RCE; not tested"}
+    _, g = _imported(_variant(tmp_path, UNCONFIRMED, assume))
+    (route,) = [g.describe(p) for p in g.conditional_paths()]
+    assert route["label"] == f"Assumed: if {ACCOUNT} is compromised"
+    assert "Same framework version as a known RCE" in route["assumptions"][0]
+    assert route["steps"][1]["trust"] == "assumed"
+
+
+def test_execution_evidence_can_support_claims_2_and_3(tmp_path):
+    def no_config(doc):
+        app = _app(doc)
+        app["evidence"] = [e for e in app["evidence"] if e["id"] != "cfg-1"]
+        app["claims"]["uses_account"]["evidence"] = ["exec-1"]
+    data, g = _imported(_variant(tmp_path, CONFIRMED, no_config))
+    assert g.shortest_paths()
+    assert data["parse_report"]["warnings"] == []
+
+
+def test_config_conflict_is_surfaced_not_resolved(tmp_path):
+    def conflict(doc):
+        _ev(doc, "cfg-1")["identity"] = "ACME\\OTHER-SVC"
+    data, g = _imported(_variant(tmp_path, CONFIRMED, conflict))
+    (msg,) = data["webapps"][0]["conflicts"]
+    assert "cfg-1" in msg and "OTHER-SVC" in msg and ACCOUNT in msg
+    assert msg in data["parse_report"]["warnings"]
+    assert g.shortest_paths()                   # the execution record still stands
+
+
+def test_sid_mismatch_with_the_directory(tmp_path):
+    def wrong_sid(doc):
+        _app(doc)["account"]["sid"] = "S-1-5-21-ACME-9999"
+    data, g = _imported(_variant(tmp_path, UNCONFIRMED, wrong_sid))
+    assert any("S-1-5-21-ACME-1106" in w and "9999" in w for w in data["parse_report"]["warnings"])
+    assert g.shortest_paths() == [] and g.conditional_paths() == []    # never binds by name
+
+    def wrong_sid_confirmed(doc):
+        _app(doc)["account"]["sid"] = "S-1-5-21-ACME-9999"
+        _ev(doc, "exec-1")["effective_sid"] = "S-1-5-21-ACME-9999"
+    with pytest.raises(WebappImportError, match="invalid confirmed privileges_obtainable"):
+        _imported(_variant(tmp_path, CONFIRMED, wrong_sid_confirmed))
+
+
+def _set(eid, key, value):
+    def mutate(doc):
+        _ev(doc, eid)[key] = value
+    return mutate
+
+
+def _claim(name, **fields):
+    def mutate(doc):
+        _app(doc)["claims"][name].update(fields)
+    return mutate
+
+
+INVALID = [
+    ("duplicate evidence id", lambda d: _app(d)["evidence"].append(dict(_ev(d, "req-1"))),
+     "duplicate evidence id"),
+    ("trigger not in this app", _set("exec-1", "triggered_by", "req-9"), "not evidence in this app"),
+    ("trigger is not a request", _set("exec-1", "triggered_by", "cfg-1"), "triggered_by an http_request"),
+    ("executed as another SID", _set("exec-1", "effective_sid", "S-1-5-21-ACME-1103"),
+     "not the mapped account"),
+    ("executed on another host", _set("exec-1", "host", "FILE01.ACME.LAB"), "not the app host"),
+    ("no execution record", _claim("privileges_obtainable", evidence=["req-2"]),
+     "invalid confirmed privileges_obtainable: needs execution_identity"),
+    ("claim cites unknown evidence", _claim("uses_account", evidence=["cfg-9"]), "cites 'cfg-9'"),
+    ("confirmed without evidence", _claim("uses_account", evidence=[]), "must cite evidence"),
+    ("not_assessed with evidence", _claim("privileges_obtainable", status="not_assessed"),
+     "can't cite evidence"),
+    ("assumed without rationale", _claim("privileges_obtainable", status="assumed"), "needs a rationale"),
+    ("unknown vantage", _set("req-1", "vantage", "laptop-9"), "unknown vantage"),
+    ("request without response summary", _set("req-1", "response", {"status": 200}),
+     "integer status and a summary"),
+    ("bad digest", _set("cfg-1", "artifact_sha256", "abc"), "64 lowercase hex"),
+    ("credential field", lambda d: _app(d)["account"].update(password="x"), "credential-like"),
+    ("raw response body", lambda d: _ev(d, "req-1")["response"].update(body="<html>"),
+     "raw response bodies"),
+    ("old claim name", lambda d: _app(d)["claims"].update(exposed={"status": "not_assessed"}),
+     "unknown claim"),
+    ("wrong schema", lambda d: d.update(schema="horuseye.webapps/0"), "schema must be"),
+]
+
+
+@pytest.mark.parametrize("mutate,expected", [(m, e) for _n, m, e in INVALID],
+                         ids=[n for n, _m, _e in INVALID])
+def test_invalid_files_fail_the_import(tmp_path, mutate, expected):
+    with pytest.raises(WebappImportError, match=re.escape(expected)):
+        _imported(_variant(tmp_path, CONFIRMED, mutate))
+
+
+def test_relationship_ids_are_stable_and_unique():
+    _, g1 = _imported(CONFIRMED)
+    _, g2 = _imported(CONFIRMED)
+    ids1 = [g1.rel_id(e) for es in g1.adj.values() for e in es]
+    ids2 = [g2.rel_id(e) for es in g2.adj.values() for e in es]
+    assert ids1 == ids2 and len(set(ids1)) == len(ids1)
+    assert "AdminTo:WEB-SVC->WEB01.ACME.LAB" in ids1
+    assert "ExecutesAs:APP:ACME-PORTAL->WEB-SVC" in ids1
+
+
+def test_import_leaves_the_jdoe_demo_unchanged():
+    before = AttackGraph(_lab())
+    _, after = _imported(CONFIRMED)
+    owned = ["JDOE@ACME.LAB"]
+    assert [before.describe(p) for p in before.shortest_paths(owned=owned)] == \
+        [after.describe(p) for p in after.shortest_paths(owned=owned)]
+    assert before.remediation_plans(owned=owned) == after.remediation_plans(owned=owned)
+
+
+# ── CLI end to end ───────────────────────────────────────────────────────────
+def _cli(*args):
+    return subprocess.run([sys.executable, "-m", "horuseye", "--bloodhound", str(LAB),
+                           "--domain", "ACME.LAB", "--dc", "10.10.0.5", "--graph", *args],
+                          cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
+                          env={**__import__("os").environ, "PYTHONIOENCODING": "utf-8"})
+
+
+def test_cli_reports_conditional_routes_separately(tmp_path):
+    out = tmp_path / "r.json"
+    run = _cli("--webapps", str(UNCONFIRMED), "--json", str(out))
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert "Conditional routes" in run.stdout and "not assessed" in run.stdout
+    report = _load(out)
+    assert report["attack_paths"] == []
+    assert report["conditional_paths"][0]["label"] == f"Hypothetical: if {ACCOUNT} is compromised"
+
+
+def test_cli_rejects_an_invalid_import_with_exit_1(tmp_path):
+    bad = _variant(tmp_path, CONFIRMED, _set("exec-1", "triggered_by", "req-9"))
+    run = _cli("--webapps", str(bad))
+    assert run.returncode == 1
+    assert "not evidence in this app" in run.stdout + run.stderr

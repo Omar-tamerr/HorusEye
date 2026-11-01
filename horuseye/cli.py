@@ -138,6 +138,9 @@ def main():
     g.add_argument("--cme",        metavar="FILE",  help="CrackMapExec output file")
     g.add_argument("--nxc",        metavar="FILE",  help="NetExec (nxc) output file — modern CME replacement")
     g.add_argument("--certipy",    metavar="FILE")
+    g.add_argument("--webapps",    metavar="FILE",
+                   help="Web app -> AD service account claims (horuseye.webapps/1-draft); "
+                        "see examples/acme-lab-webapp")
     g.add_argument("--manual",     action="store_true")
 
     # ── Target ────────────────────────────────────────────────────────────
@@ -417,12 +420,17 @@ def render_attack_paths(domain_data, args):
                       f"in the data (check the names).[/yellow]")
     paths = graph.shortest_paths(owned=owned or None, max_paths=max(1, args.max_paths),
                                  targets=targets or None)
+    conditional = [graph.describe(p) for p in
+                   graph.conditional_paths(owned=owned or None, max_paths=max(1, args.max_paths),
+                                           targets=targets or None)]
 
     if not paths:
-        origin = ", ".join(owned) if owned else "any domain user"
+        origin = (", ".join(owned) if owned else
+                  "any domain user or the imported vantages" if graph.vantages else "any domain user")
         console.print(f"  [yellow]No attack path to {goal_label} found from {origin}.[/yellow]")
         console.print("  [dim]Provide a foothold with --owned USER@DOMAIN, or ingest local-admin/"
                       "session data (SharpHound -c All) for richer paths.[/dim]\n")
+        _print_conditional(conditional)
         return []
 
     described = []
@@ -430,19 +438,12 @@ def render_attack_paths(domain_data, args):
         desc = graph.describe(path)
         described.append(desc)
         tag = f" · {desc['inferred_steps']} inferred step(s)" if desc["inferred_steps"] else ""
+        if desc["validated_steps"]:
+            tag += f" · {desc['validated_steps']} validated"
         console.print(f"  [bold white]Path {i}[/bold white]  "
                       f"[dim]({desc['hops']} hop{'s' if desc['hops'] != 1 else ''}: "
-                      f"{desc['start']} → {desc['goal']}{tag})[/dim]")
-        console.print(f"    [green]{desc['start']}[/green]")
-        for step, cmd in zip(desc["steps"], desc["commands"]):
-            style = _EDGE_STYLE.get(step["type"], "white")
-            trust = "" if step["trust"] == "observed" else " [italic yellow](inferred)[/italic yellow]"
-            console.print(f"      [dim]│[/dim] [{style}]{step['type']}[/{style}] "
-                          f"[dim]({step['detail']})[/dim]{trust}")
-            first_cmd = cmd.split(chr(10))[0]
-            console.print(f"      [dim]▼[/dim] [bold white]{step['to']}[/bold white]  "
-                          f"[dim]{first_cmd}[/dim]")
-        console.print()
+                      f"{escape(desc['start'])} → {escape(desc['goal'])}{tag})[/dim]")
+        _print_steps(desc)
 
     # Remediation impact: which single fix breaks the shortest path.
     impact = graph.remediation_impact(owned=owned or None, targets=targets or None,
@@ -457,9 +458,41 @@ def render_attack_paths(domain_data, args):
         console.print()
     _print_plans(graph.remediation_plans(owned=owned or None, targets=targets or None,
                                          keep=keep), keep)
+    _print_conditional(conditional)
     console.print(f"  [bold red]𓂀 {len(described)} path(s) to {goal_label}. "
                   f"Shortest: {described[0]['hops']} hop(s).[/bold red]\n")
     return described
+
+
+_TRUST_TAG = {"inferred": " [italic yellow](inferred)[/italic yellow]",
+              "validated": " [bold green](validated)[/bold green]",
+              "assumed": " [italic magenta](assumed)[/italic magenta]",
+              "not_assessed": " [italic magenta](not assessed)[/italic magenta]"}
+
+
+def _print_steps(desc):
+    console.print(f"    [green]{escape(desc['start'])}[/green]")
+    for step, cmd in zip(desc["steps"], desc["commands"]):
+        style = _EDGE_STYLE.get(step["type"], "white")
+        kind = " [dim]· reachability, not control[/dim]" if step.get("kind") == "reachability" else ""
+        console.print(f"      [dim]│[/dim] [{style}]{step['type']}[/{style}] "
+                      f"[dim]({escape(step['detail'])})[/dim]{_TRUST_TAG.get(step['trust'], '')}{kind}")
+        first_cmd = cmd.split(chr(10))[0]
+        console.print(f"      [dim]▼[/dim] [bold white]{escape(step['to'])}[/bold white]  "
+                      f"[dim]{escape(first_cmd)}[/dim]")
+    console.print()
+
+
+def _print_conditional(conditional):
+    """Routes that need an unproven step: shown apart, never counted as paths."""
+    if not conditional:
+        return
+    console.print("  [bold magenta]𓂀 Conditional routes[/bold magenta] [dim](need a step that "
+                  "is assumed or not assessed; not counted as attack paths)[/dim]")
+    for desc in conditional:
+        console.print(f"  [bold magenta]{escape(desc['label'])}[/bold magenta]  "
+                      f"[dim]({escape(desc['rationale'])})[/dim]")
+        _print_steps(desc)
 
 
 def run_main_analysis(args, config, claude_key):
@@ -481,6 +514,14 @@ def run_main_analysis(args, config, claude_key):
 
     # ── Parse ────────────────────────────────────────────────────────────
     domain_data = parse_all_sources(args, console, animated_task)
+    if getattr(args, "webapps", None):
+        from horuseye.parsers.webapps import load_webapps   # raises on invalid input → exit 1
+        before = len(domain_data.get("parse_report", {}).get("warnings", []))
+        load_webapps(args.webapps, domain_data)
+        apps = domain_data.get("webapps", [])
+        console.print(f"[green]🌐 Web apps: {len(apps)} imported from {escape(args.webapps)}[/green]")
+        for w in domain_data["parse_report"]["warnings"][before:]:
+            console.print(f"  [yellow]⚠ {escape(w)}[/yellow]")
 
     # ── Wordlist ─────────────────────────────────────────────────────────
     if args.make_wordlist and domain_data["users"]:
@@ -552,6 +593,9 @@ def run_main_analysis(args, config, claude_key):
         reporter.remediation = g.remediation_impact(owned=owned, targets=targets,
                                                     max_paths=max(1, args.max_paths), keep=keep)
         reporter.remediation_plans = g.remediation_plans(owned=owned, targets=targets, keep=keep)
+        reporter.conditional_paths = [g.describe(p) for p in
+                                      g.conditional_paths(owned=owned, targets=targets,
+                                                          max_paths=max(1, args.max_paths))]
         reporter.keep = keep
 
     # ── DA Checklist ─────────────────────────────────────────────────────

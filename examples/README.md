@@ -64,8 +64,8 @@ The same report runs on the website as the
 [live demo](https://omar-tamerr.github.io/HorusEye/demo.html), rebuilt with
 `python scripts/build_demo.py`.
 
-> [`acme-lab-webapp/`](acme-lab-webapp) holds draft fixtures for a proposed
-> web app → AD service account import, built on `WEB-SVC`.
+> [`acme-lab-webapp/`](acme-lab-webapp) holds the web app → AD service account
+> import fixtures (`--webapps`), built on `WEB-SVC`.
 
 > Generate larger synthetic domains for benchmarking with
 > `python scripts/benchmark.py`, which uses `horuseye.synthetic`.

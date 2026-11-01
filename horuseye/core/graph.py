@@ -17,12 +17,24 @@ Edge sources (all from data the parsers already produce):
   DCSync              principal -> <domain>        (replicate secrets)
   Unconstrained deleg computer -> <domain>         (coerce a DC — INFERRED)
   ConstrainedDeleg    principal -> target          (S4U impersonation — INFERRED)
+  Reaches             vantage   -> web app         (reachability, NOT control)
+  ExecutesAs          web app   -> account         (act with the account's privileges)
+
+The last two come from a web app import (``parsers/webapps.py``). ``Reaches``
+is the only edge that is not a control relationship: reaching an app gives
+the tester no control of it, so it is never proposed as a fix.
 
 Trust tiers
 -----------
-``observed`` — the edge is a relationship read directly from the data.
-``inferred`` — the edge requires an additional abuse step (coercion, S4U) that
-               the data makes *possible* but does not prove.
+``validated``    — demonstrated in this engagement, with evidence.
+``observed``     — a relationship read directly from the directory data.
+``inferred``     — needs an additional abuse step (coercion, S4U) that the data
+                   makes *possible* but does not prove.
+``assumed``      — an analyst assumption (with a rationale), not evidence.
+``not_assessed`` — never assessed; used only for "what if" routes.
+
+Normal routes never cross an ``assumed`` or ``not_assessed`` step; routes that
+need one are reported separately as conditional.
 
 Nodes are identified by normalized name (upper-case, no @domain). Pathfinding is
 deterministic and never consults an LLM.
@@ -46,6 +58,7 @@ _RIGHT_NAMES = {
 }
 
 _INFERRED_TYPES = {"Unconstrained", "ConstrainedDeleg"}
+_CONDITIONAL_TRUST = {"assumed", "not_assessed"}       # never on a normal route
 
 # Remediation plan strategies, in presentation order: (id, title, summary).
 _PLAN_STRATEGIES = (
@@ -61,11 +74,13 @@ _SOURCE, _SINK = ("<source>",), ("<sink>",)    # flow-network terminals; never a
 
 
 class Edge:
-    __slots__ = ("src", "dst", "type", "detail", "trust")
+    __slots__ = ("src", "dst", "type", "detail", "trust", "kind", "evidence", "note")
 
     def __init__(self, src: str, dst: str, etype: str, detail: str = "",
-                 trust: str = "observed"):
+                 trust: str = "observed", kind: str = "control",
+                 evidence: tuple = (), note: str = ""):
         self.src, self.dst, self.type, self.detail, self.trust = src, dst, etype, detail, trust
+        self.kind, self.evidence, self.note = kind, tuple(evidence), note
 
 
 class AttackGraph:
@@ -77,6 +92,7 @@ class AttackGraph:
         self.display: Dict[str, str] = {}      # node -> best display name
         self.is_computer: Set[str] = set()
         self._members_of: Optional[Dict[str, Set[str]]] = None   # group -> direct members, lazily
+        self.vantages: Set[str] = set()        # assessment vantages from a web app import
         self._build()
 
     # ── Construction ────────────────────────────────────────────────────────
@@ -90,12 +106,13 @@ class AttackGraph:
         return n
 
     def _edge(self, src: str, dst: str, etype: str, detail: str = "",
-              src_is_computer: bool = False, dst_is_computer: bool = False):
+              src_is_computer: bool = False, dst_is_computer: bool = False,
+              trust: Optional[str] = None, **extra):
         s = self._node(src, src_is_computer)
         d = self._node(dst, dst_is_computer)
         if s and d and s != d:
-            trust = "inferred" if etype in _INFERRED_TYPES else "observed"
-            self.adj.setdefault(s, []).append(Edge(s, d, etype, detail, trust))
+            trust = trust or ("inferred" if etype in _INFERRED_TYPES else "observed")
+            self.adj.setdefault(s, []).append(Edge(s, d, etype, detail, trust, **extra))
 
     @staticmethod
     def _dicts(seq):
@@ -154,6 +171,39 @@ class AttackGraph:
         for dt in self._dicts(d.get("delegation_targets")):
             self._edge(dt.get("principal", ""), dt.get("target", ""),
                        "ConstrainedDeleg", "S4U impersonation")
+        for app in self._dicts(d.get("webapps")):
+            self._webapp(app)
+
+    def _webapp(self, app: Dict):
+        """Turn an imported app's claims into edges. Claims are never changed
+        and the account is never marked owned: the trust says what was proven."""
+        claims = app.get("claims") or {}
+        node = f"APP:{app.get('id', '')}"
+        reach = claims.get("reachable_from_vantage") or {}
+        vantage = (app.get("vantage") or {}).get("id")
+        if vantage and reach.get("status") in ("confirmed", "assumed"):
+            vnode = f"VANTAGE:{vantage}"
+            self.vantages.add(self._node(vnode))
+            self._edge(vnode, node, "Reaches", f"reachable from {vantage}",
+                       trust="validated" if reach["status"] == "confirmed" else "assumed",
+                       kind="reachability", evidence=reach.get("evidence", ()),
+                       note=reach.get("rationale", ""))
+        if not app.get("bound"):
+            return                           # the account mapping didn't bind by SID
+        uses = (claims.get("uses_account") or {}).get("status")
+        priv = claims.get("privileges_obtainable") or {}
+        if priv.get("status") == "confirmed":
+            trust = "validated"
+        elif priv.get("status") == "assumed":
+            trust = "assumed"
+        elif uses in ("confirmed", "assumed"):
+            trust = "not_assessed"           # what-if only; the claim stays not_assessed
+        else:
+            return
+        account = app["account"]["name"]
+        self._edge(node, account, "ExecutesAs",
+                   f"act with {short(account)}'s privileges through the app", trust=trust,
+                   evidence=priv.get("evidence", ()), note=priv.get("rationale", ""))
 
     # ── Goal / start sets ─────────────────────────────────────────────────────
     def _all_nodes(self) -> Set[str]:
@@ -173,24 +223,28 @@ class AttackGraph:
         return goals
 
     def start_nodes(self, owned: Optional[List[str]] = None) -> Set[str]:
+        """``owned`` if given; otherwise broad groups (any domain user) plus
+        any imported assessment vantages. An imported account is never a start."""
         if owned:
             return {norm(o) for o in owned if o}
         nodes = self._all_nodes()
-        return {n for n in nodes if norm(self.display.get(n, n)) in BROAD_NAMES}
+        return {n for n in nodes if norm(self.display.get(n, n)) in BROAD_NAMES} | self.vantages
 
     # ── Pathfinding ────────────────────────────────────────────────────────────
     def shortest_paths(self, owned: Optional[List[str]] = None,
                        max_paths: int = 5,
-                       targets: Optional[List[str]] = None) -> List[List[Edge]]:
+                       targets: Optional[List[str]] = None,
+                       conditional: bool = False) -> List[List[Edge]]:
         """Up to ``max_paths`` short, node-diverse paths from the start set to the
-        nearest goal. ``targets`` overrides the default Tier-0 goals."""
+        nearest goal. ``targets`` overrides the default Tier-0 goals. Steps that
+        are only assumed or not assessed are crossed only if ``conditional``."""
         starts, goals = self.start_nodes(owned), self.goal_nodes(targets)
         if not starts or not goals:
             return []
         starts = {s for s in starts if s not in goals}
         paths, banned = [], set()
         for _ in range(max_paths):
-            path = self._bfs(starts, goals, banned)
+            path = self._bfs(starts, goals, banned, conditional=conditional)
             if not path:
                 break
             paths.append(path)
@@ -201,6 +255,15 @@ class AttackGraph:
         # Rank: fewer hops first, then fewer inferred edges, then stable by names.
         paths.sort(key=self._rank_key)
         return paths
+
+    def conditional_paths(self, owned: Optional[List[str]] = None,
+                          max_paths: int = 5,
+                          targets: Optional[List[str]] = None) -> List[List[Edge]]:
+        """Routes that need at least one assumed or not-assessed step ("what if
+        this account is compromised"). Reported separately from normal routes."""
+        return [p for p in self.shortest_paths(owned=owned, max_paths=max_paths,
+                                               targets=targets, conditional=True)
+                if any(e.trust in _CONDITIONAL_TRUST for e in p)]
 
     def _rank_key(self, path: List[Edge]):
         inferred = sum(1 for e in path if e.trust == "inferred")
@@ -214,8 +277,16 @@ class AttackGraph:
         distinct, so removing one doesn't silently remove the other."""
         return (e.src, e.dst, e.type, e.detail)
 
+    @staticmethod
+    def rel_id(e: Edge) -> str:
+        """Stable, readable relationship id (e.g. ``AdminTo:WEB-SVC->WEB01.ACME.LAB``),
+        so later evidence can name exactly which relationship it validates."""
+        right = f":{(e.detail or '').split(' ')[0]}" if e.type == "ACL" else ""
+        return f"{e.type}{right}:{e.src}->{e.dst}"
+
     def _bfs(self, starts: Set[str], goals: Set[str], banned: Set[str],
-             banned_edges: Optional[Set[tuple]] = None) -> List[Edge]:
+             banned_edges: Optional[Set[tuple]] = None,
+             conditional: bool = False) -> List[Edge]:
         banned_edges = banned_edges or set()
         q = deque()
         seen = set()
@@ -229,6 +300,8 @@ class AttackGraph:
             if node in goals:
                 return self._reconstruct(node, prev)
             for e in self.adj.get(node, []):
+                if not conditional and e.trust in _CONDITIONAL_TRUST:
+                    continue              # unproven: only on "what if" routes
                 if banned_edges and self.edge_key(e) in banned_edges:
                     continue              # this one relationship is removed
                 if e.dst in seen or e.dst in banned:
@@ -271,8 +344,8 @@ class AttackGraph:
         for path in paths:
             for e in path:
                 key = self.edge_key(e)
-                if key in done:
-                    continue
+                if key in done or e.kind == "reachability":
+                    continue                  # reaching an app is not a fix to make
                 done.add(key)
                 remains = bool(self._bfs(starts, goals, set(), banned_edges={key}))
                 out.append({
@@ -337,8 +410,8 @@ class AttackGraph:
             return []
         kept = self.parse_keep(keep)
 
-        def is_kept(e):
-            return (e.src, e.dst) in kept
+        def is_kept(e):                       # kept access, and reachability (not a fix)
+            return (e.src, e.dst) in kept or e.kind == "reachability"
 
         def kept_or_membership(e):
             return is_kept(e) or e.type == "MemberOf"
@@ -400,6 +473,8 @@ class AttackGraph:
                 continue                       # nothing past a target matters
             for e in self.adj[u]:
                 key = self.edge_key(e)
+                if e.trust in _CONDITIONAL_TRUST:
+                    continue                   # unproven steps aren't routes to cut
                 if key not in seen:            # duplicate rows are one relationship
                     seen.add(key)
                     arc(u, e.dst, big if protected(e) else 1, e)
@@ -454,7 +529,7 @@ class AttackGraph:
         while q:
             n = q.popleft()
             for e in self.adj.get(n, []):
-                if e.dst not in depth:
+                if e.dst not in depth and e.trust not in _CONDITIONAL_TRUST:
                     depth[e.dst] = depth[n] + 1
                     q.append(e.dst)
         return depth
@@ -504,6 +579,8 @@ class AttackGraph:
             "DCSync": "replicate domain secrets (DCSync)",
             "Unconstrained": "unconstrained delegation",
             "ConstrainedDeleg": f"delegate to {b}",
+            "Reaches": f"reach {b}",
+            "ExecutesAs": f"act as {b}",
         }.get(e.type, f"{e.type} on {b}")
 
     def fix_text(self, e: Edge) -> str:
@@ -523,6 +600,9 @@ class AttackGraph:
             "Unconstrained": f"Disable unconstrained delegation on {a} "
                              f"(use constrained or resource-based delegation).",
             "ConstrainedDeleg": f"Restrict what {a} may delegate to on {b}.",
+            "Reaches": f"Restrict which networks can reach {a.split(':', 1)[-1]}.",
+            "ExecutesAs": f"Fix the vulnerable endpoint in {a.split(':', 1)[-1]}, and run it "
+                          f"under an account with only the rights it needs.",
         }.get(e.type, "Remove this relationship.")
 
     def _change(self, e: Edge) -> Dict:
@@ -553,6 +633,10 @@ class AttackGraph:
             out.update(kind="configuration", affects=[src], loses=["unconstrained delegation"],
                        effect=f"{a} loses unconstrained delegation.",
                        note="Services that rely on it need constrained or resource-based delegation.")
+        elif e.type == "ExecutesAs":
+            out.update(kind="application", affects=[], loses=[],
+                       effect="No one loses access: the fix is in the application.",
+                       note=f"Reducing {b}'s own rights is a separate, additional change.")
         else:
             right = self._right_text(e)
             members = self._members(e.src)
@@ -577,18 +661,46 @@ class AttackGraph:
         steps, commands = [], []
         for e in path:
             src, dst = self.display.get(e.src, e.src), self.display.get(e.dst, e.dst)
-            steps.append({"from": src, "to": dst, "type": e.type,
-                          "detail": e.detail, "trust": e.trust})
+            steps.append({"id": self.rel_id(e), "from": src, "to": dst, "type": e.type,
+                          "detail": e.detail, "trust": e.trust, "kind": e.kind,
+                          "evidence": list(e.evidence)})
             commands.append(self._command(e, src, dst))
         inferred = sum(1 for e in path if e.trust == "inferred")
         start = self.display.get(path[0].src, path[0].src) if path else ""
         end = self.display.get(path[-1].dst, path[-1].dst) if path else ""
-        rationale = (f"{len(path)} hop(s)"
-                     + (f", {inferred} requiring an inferred abuse step (coercion / S4U)"
-                        if inferred else ", all steps are observed relationships")
-                     + ". Shorter, fully-observed paths rank higher.")
+        validated = sum(1 for e in path if e.trust == "validated")
+        unproven = sum(1 for e in path if e.trust in _CONDITIONAL_TRUST)
+        if validated or unproven:
+            derived = len(path) - validated - unproven
+            parts = [f"{validated} validated in this engagement" if validated else "",
+                     f"{derived} derived from the imported data"
+                     + (f" ({inferred} inferred)" if inferred else "") if derived else "",
+                     f"{unproven} not proven (assumed or not assessed)" if unproven else ""]
+            rationale = f"{len(path)} hop(s): " + ", ".join(p for p in parts if p) + "."
+        else:
+            rationale = (f"{len(path)} hop(s)"
+                         + (f", {inferred} requiring an inferred abuse step (coercion / S4U)"
+                            if inferred else ", all steps are observed relationships")
+                         + ". Shorter, fully-observed paths rank higher.")
+        # Conditional routes say exactly what they take for granted.
+        assumptions, labels = [], []
+        for e in path:
+            if e.trust not in _CONDITIONAL_TRUST:
+                continue
+            who = self.display.get(e.dst, e.dst)
+            if e.trust == "assumed":
+                assumptions.append(f"{who} is compromised through {self.display.get(e.src, e.src)} "
+                                   f"(assumed: {e.note})")
+                labels.append(f"Assumed: if {who} is compromised")
+            else:
+                assumptions.append(f"{who} is compromised through {self.display.get(e.src, e.src)} "
+                                   f"(not assessed)")
+                labels.append(f"Hypothetical: if {who} is compromised")
         return {"hops": len(path), "start": start, "goal": end,
-                "inferred_steps": inferred, "rationale": rationale,
+                "inferred_steps": inferred, "validated_steps": validated,
+                "rationale": rationale, "conditional": bool(assumptions),
+                "assumptions": assumptions,
+                "label": "; ".join(labels) if labels else f"{start} → {end}",
                 "steps": steps, "commands": commands}
 
     def _command(self, e: Edge, src: str, dst: str) -> str:
@@ -608,4 +720,8 @@ class AttackGraph:
             "Unconstrained": f"# coerce a DC to auth to {src}, capture the TGT (printerbug/PetitPotam)",
             "ConstrainedDeleg": f"impacket-getST -spn SERVICE/{short} -impersonate Administrator "
                                 f"{dom}/USER:PASS -dc-ip {dc}",
+            "Reaches": f"# {dst} answered requests from {src} "
+                       f"(evidence: {', '.join(e.evidence) or 'none'})",
+            "ExecutesAs": f"# {src} ran code as {dst} "
+                          f"(evidence: {', '.join(e.evidence) or 'not assessed'})",
         }.get(e.type, f"# advance from {src} to {dst} ({e.type})")

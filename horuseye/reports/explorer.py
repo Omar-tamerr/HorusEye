@@ -64,6 +64,10 @@ def _node_types(domain_data: Optional[Dict]):
 def _otype(name: str, types) -> str:
     groups, users, comps, dom = types
     n = (name or "").strip().upper()
+    if n.startswith("APP:"):
+        return "webapp"
+    if n.startswith("VANTAGE:"):
+        return "vantage"
     if dom and n == dom:
         return "domain"
     if n in comps:
@@ -101,6 +105,8 @@ def build_graph_view(paths: List[Dict], impact: List[Dict],
             if n is None:
                 otype = _otype(name, types)
                 label = name.split("@")[0]
+                if otype in ("webapp", "vantage"):
+                    label = name.split(":", 1)[1]
                 if otype == "computer" and "." in label:
                     label = label.split(".")[0]
                 n = nodes[name] = {"id": name, "label": label, "depth": depth,
@@ -118,6 +124,7 @@ def build_graph_view(paths: List[Dict], impact: List[Dict],
                     "id": len(edges), "from": s.get("from"), "to": s.get("to"),
                     "type": s.get("type"), "detail": s.get("detail", ""),
                     "trust": s.get("trust", "observed"),
+                    "kind": s.get("kind", "control"),
                     "command": cmds[si] if si < len(cmds) else "",
                     "choke": bool(h and h.get("breaks_path")),
                     "alt": None if h is None else bool(h.get("alternative_remains")),
@@ -352,6 +359,8 @@ __HEAD_EXTRA__
  .edge.on .line{stroke:var(--gold)}
  .edge.choke .line{stroke:var(--red)}
  .edge.inferred .line{stroke-dasharray:7 6}
+ .edge.reach .line{stroke-dasharray:2 6}
+ .tag.green{border-color:#1f5a35;color:var(--green)}
  .edge.sel .line{stroke-width:4}
  .edge .flow{fill:none;stroke:#fff;stroke-opacity:.6;stroke-width:2.2;stroke-dasharray:3 13;
    stroke-linecap:round;display:none;animation:flow 1.1s linear infinite;pointer-events:none}
@@ -461,20 +470,25 @@ function esc(s){s=(s==null?"":String(s));return s.replace(/[&<>"']/g,function(c)
   return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];});}
 function $(id){return document.getElementById(id);}
 function each(sel,fn){Array.prototype.forEach.call(document.querySelectorAll(sel),fn);}
-function short(s){s=s||"";var i=s.indexOf("@");return i>0?s.slice(0,i):s;}
+function short(s){s=s||"";var m=/^(APP|VANTAGE):(.+)$/i.exec(s);if(m)return m[2];
+  var i=s.indexOf("@");return i>0?s.slice(0,i):s;}
 function plural(n,w){return n+" "+w+(n===1?"":"s");}
 function pill(s){s=s||"INFO";return '<span class="pill sev-'+s+'">'+s+'</span>';}
 function bySev(a,b){return SEV.indexOf(a.severity||"INFO")-SEV.indexOf(b.severity||"INFO");}
 function uniq(a){var o=[];a.forEach(function(x){if(o.indexOf(x)<0)o.push(x);});return o;}
 
-var ICON = {user:"👤",group:"👥",computer:"🖥️",domain:"🏛️",principal:"🔑"};
-var TYPE = {user:"User",group:"Group",computer:"Computer",domain:"Domain",principal:"Principal"};
+var ICON = {user:"👤",group:"👥",computer:"🖥️",domain:"🏛️",principal:"🔑",webapp:"🌐",vantage:"🧪"};
+var TYPE = {user:"User",group:"Group",computer:"Computer",domain:"Domain",principal:"Principal",
+  webapp:"Web app",vantage:"Assessment vantage"};
 var RIGHTS = {genericall:"GenericAll",genericwrite:"GenericWrite",writedacl:"WriteDacl",
   writeowner:"WriteOwner",owns:"Owns",allextendedrights:"AllExtendedRights",
   addkeycredentiallink:"AddKeyCredentialLink",writespn:"WriteSPN"};
 var ELABEL = {MemberOf:"Member of",AdminTo:"Admin to",HasSession:"Has session",
   ForceChangePassword:"Reset password",AddMember:"Add member",DCSync:"DCSync",
-  Unconstrained:"Unconstrained deleg.",ConstrainedDeleg:"Constrained deleg."};
+  Unconstrained:"Unconstrained deleg.",ConstrainedDeleg:"Constrained deleg.",
+  Reaches:"Reaches",ExecutesAs:"Acts as"};
+function trustTag(t){return t==="validated"?'<span class="tag green">validated</span>'
+  :(t&&t!=="observed"?'<span class="tag amber">'+esc(t.replace("_"," "))+'</span>':'');}
 function edgeLabel(e){
   if(e.type==="ACL"){var r=String(e.detail||"").split(" ")[0];return RIGHTS[r]||r||"ACL";}
   return ELABEL[e.type]||e.type;
@@ -491,6 +505,8 @@ function explain(e){
     case "DCSync": return a+" can replicate secrets from the domain controllers, including the krbtgt hash.";
     case "Unconstrained": return a+" is trusted for unconstrained delegation: if a domain controller is made to authenticate to it, the DC's ticket can be captured.";
     case "ConstrainedDeleg": return a+" can impersonate users to services on "+b+" (S4U delegation).";
+    case "Reaches": return b+" answered requests from "+a+". Reaching an app does not mean controlling it.";
+    case "ExecutesAs": return "Through "+a+", an attacker can act with "+b+"'s privileges.";
   }
   return a+" → "+b+" ("+esc(e.type)+").";
 }
@@ -506,6 +522,8 @@ function fixText(e){
     case "DCSync": return "Remove replication rights (Get-Changes / Get-Changes-All) from "+a+".";
     case "Unconstrained": return "Disable unconstrained delegation on "+a+" (use constrained or resource-based delegation).";
     case "ConstrainedDeleg": return "Restrict what "+a+" may delegate to on "+b+".";
+    case "Reaches": return "Restrict which networks can reach "+b+".";
+    case "ExecutesAs": return "Fix the vulnerable endpoint in "+a+", and run it under an account with only the rights it needs.";
   }
   return "Remove this relationship.";
 }
@@ -652,7 +670,7 @@ function drawGraph(){
     else{x1=a.cx;y1=a.y+nH;x2=b.cx;y2=b.y-3;var dy=Math.max(36,Math.abs(y2-y1)/2);c1x=x1;c1y=y1+dy;c2x=x2;c2y=y2-dy;}
     var d="M"+x1.toFixed(1)+","+y1.toFixed(1)+" C"+c1x.toFixed(1)+","+c1y.toFixed(1)+" "+c2x.toFixed(1)+","+c2y.toFixed(1)+" "+x2.toFixed(1)+","+y2.toFixed(1);
     var on=r<0||e.paths.indexOf(r)>=0,cut=isCut(e);
-    var cls="edge"+(on?" on":" dim")+(cut?" choke":"")+(e.trust==="inferred"?" inferred":"")+(S.edge===e.id?" sel":"");
+    var cls="edge"+(on?" on":" dim")+(cut?" choke":"")+(e.trust==="inferred"?" inferred":"")+(e.kind==="reachability"?" reach":"")+(S.edge===e.id?" sel":"");
     var mk=cut?"m-choke":(on?"m-on":"m-dim");
     var t=fan[e.from]>1?0.64:0.5,u=1-t,k0=u*u*u,k1=3*u*u*t,k2=3*u*t*t,k3=t*t*t;
     var mx=k0*x1+k1*c1x+k2*c2x+k3*x2,my=k0*y1+k1*c1y+k2*c2y+k3*y2;
@@ -698,11 +716,11 @@ function renderWalk(){
     return;}
   var p=D.paths[r];
   var h='<div class="lab">Route '+(r+1)+' — step by step</div><h3>'+esc(short(p.start))+' <span class="arrow">→</span> '+esc(short(p.goal))+'</h3>'
-    +'<p class="muted small">'+plural(p.hops,"step")+' · '+(p.inferred_steps?p.inferred_steps+' inferred step(s) need an extra action to work':'every step is a relationship observed in the data')+'</p><ol class="steps">';
+    +'<p class="muted small">'+plural(p.hops,"step")+' · '+(p.validated_steps?esc(p.rationale):(p.inferred_steps?p.inferred_steps+' inferred step(s) need an extra action to work':'every step is a relationship observed in the data'))+'</p><ol class="steps">';
   p.steps.forEach(function(s,i){var e=edgeFor(s),cmd=(p.commands||[])[i]||"";
     h+='<li class="step'+(e&&S.edge===e.id?' sel':'')+'"'+(e?' data-edge-sel="'+e.id+'"':'')+'>'
       +'<div class="stop"><span class="num">'+(i+1)+'</span><span><b>'+esc(short(s.from))+'</b> <span class="rel">'+esc(e?edgeLabel(e):s.type)+'</span> <b>'+esc(short(s.to))+'</b></span>'
-      +(e&&e.choke?'<span class="tag t-choke">✂ choke point</span>':'')+(s.trust==="inferred"?'<span class="tag amber">inferred</span>':'')+'</div>'
+      +(e&&e.choke?'<span class="tag t-choke">✂ choke point</span>':'')+trustTag(s.trust)+'</div>'
       +'<p>'+(e?explain(e):esc(s.detail||""))+'</p>'+edgeCmd(e,cmd)+'</li>';});
   h+='</ol><div class="reached">🎯 Target reached: <b>'+esc(p.goal)+'</b></div>'
     +'<p class="muted small"><b>Why this ranks #'+(r+1)+':</b> '+esc(p.rationale||"")+'</p>';
