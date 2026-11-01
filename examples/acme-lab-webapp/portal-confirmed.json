@@ -1,0 +1,62 @@
+{
+  "schema": "horuseye.webapps/1-draft",
+  "domain": "ACME.LAB",
+  "apps": [
+    {
+      "id": "acme-portal",
+      "name": "ACME intranet portal (intentionally vulnerable lab app)",
+      "host": "WEB01.ACME.LAB",
+      "url": "http://web01.acme.lab/portal/",
+      "claims": {
+        "exposed": {
+          "status": "confirmed",
+          "evidence": [
+            {
+              "id": "req-1",
+              "type": "http_request",
+              "from": "lab test machine 10.10.0.50",
+              "request": "GET http://web01.acme.lab/portal/login",
+              "timestamp": "2026-11-02T10:00:00Z",
+              "response": {"status": 200, "summary": "Portal login page"}
+            }
+          ]
+        },
+        "uses_account": {
+          "status": "confirmed",
+          "account": {"name": "WEB-SVC@ACME.LAB", "sid": "S-1-5-21-ACME-1106"},
+          "evidence": [
+            {
+              "id": "cfg-1",
+              "type": "service_config",
+              "source": "IIS applicationHost.config on WEB01 (sanitized)",
+              "detail": "Application pool 'Portal' runs as ACME\\WEB-SVC (processModel identityType=SpecificUser)"
+            }
+          ]
+        },
+        "privileges_obtainable": {
+          "status": "confirmed",
+          "via": "command_execution",
+          "evidence": [
+            {
+              "id": "req-2",
+              "type": "http_request",
+              "from": "lab test machine 10.10.0.50",
+              "request": "POST http://web01.acme.lab/portal/diag (intentionally vulnerable lab endpoint)",
+              "timestamp": "2026-11-02T10:05:00Z",
+              "response": {"status": 200, "summary": "Diagnostic output returned"}
+            },
+            {
+              "id": "exec-1",
+              "type": "execution_identity",
+              "triggered_by": "req-2",
+              "timestamp": "2026-11-02T10:05:01Z",
+              "effective_identity": "ACME\\WEB-SVC",
+              "effective_sid": "S-1-5-21-ACME-1106",
+              "detail": "whoami /user captured from the triggered process; no credentials collected"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

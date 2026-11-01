@@ -18,6 +18,7 @@ A handful of deliberately planted weaknesses:
 | `ACME.LAB ↔ PARTNER.LAB` | Bidirectional forest trust |
 | `HELPDESK` group | Local admin on `WEB01`, where a DA has a session |
 | `HELPDESK` group | Can reset `HELPDESK-SVC`'s password (ForceChangePassword) |
+| `WEB-SVC@ACME.LAB` | Intranet portal's app pool identity; local admin on `WEB01` |
 
 ## Run it
 
@@ -62,6 +63,9 @@ horuseye --bloodhound examples/acme-lab --domain ACME.LAB --dc 10.10.0.5 \
 The same report runs on the website as the
 [live demo](https://omar-tamerr.github.io/HorusEye/demo.html), rebuilt with
 `python scripts/build_demo.py`.
+
+> [`acme-lab-webapp/`](acme-lab-webapp) holds draft fixtures for a proposed
+> web app → AD service account import, built on `WEB-SVC`.
 
 > Generate larger synthetic domains for benchmarking with
 > `python scripts/benchmark.py`, which uses `horuseye.synthetic`.

@@ -534,7 +534,7 @@ horuseye/
 ├── reports/          # CLI / HTML / Markdown / JSON report generation
 ├── ai/               # optional Claude layer + local redaction (horuseye[ai])
 └── utils/            # config, dependency preflight, help
-tests/                # pytest suite — 130 tests (parsers, detector, graph,
+tests/                # pytest suite — 137 tests (parsers, detector, graph,
                       #   knowledge, noise, reports, diff, AI, schema,
                       #   provenance, determinism, redaction)
 docs/                 # screenshots and reference material
@@ -564,7 +564,7 @@ pip install -e ".[dev]"   # installs pytest
 pytest -q
 ```
 
-130 tests cover the BloodHound parser, the scorer, the full detection engine,
+137 tests cover the BloodHound parser, the scorer, the full detection engine,
 noise reduction, the knowledge base, the attack-path graph and remediation
 options, report exports, the
 retest diff, and the AI layer (with a fake SDK — no network). A regression guard
