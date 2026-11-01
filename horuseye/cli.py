@@ -385,7 +385,7 @@ def _print_plans(plans, keep):
                           "access marked --keep.[/yellow]\n")
         return
     console.print("  [bold cyan]𓂀 Remediation options[/bold cyan] "
-                  "[dim](each breaks every route, including routes not shown — verified)[/dim]")
+                  "[dim](each breaks every route in the imported graph, including routes not shown)[/dim]")
     for i, p in enumerate(plans, 1):
         n, m = len(p["changes"]), p["memberships_removed"]
         mem = (f"removes {m} group membership{'s' if m != 1 else ''}" if m

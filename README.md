@@ -365,7 +365,7 @@ Paths are included in the HTML report and rendered as Mermaid diagrams in the Ma
 
 ### Remediation options — fix it without breaking someone's job
 
-The shortest fix is not always the right one. Removing a user from a group closes the routes, but it also takes away everything that group gives them, including access their job depends on. So after the paths, HorusEye compares **remediation options**. Each one is a different set of changes that **breaks every route**, including routes not shown, and is re-checked by search before it is reported:
+The shortest fix is not always the right one. Removing a user from a group closes the routes, but it also takes away everything that group gives them, including access their job depends on. So after the paths, HorusEye compares **remediation options**. Each one is a different set of changes that **breaks every route in the imported graph**, including routes not shown, and is re-checked by search before it is reported. That is the scope of the check: relationships missing from the collected data can't be seen.
 
 | Option | What it does |
 |---|---|
@@ -384,7 +384,7 @@ horuseye --bloodhound examples/acme-lab --domain ACME.LAB --dc 10.10.0.5 --graph
 ```
 
 ```
-𓂀 Remediation options (each breaks every route, including routes not shown — verified)
+𓂀 Remediation options (each breaks every route in the imported graph, including routes not shown)
 Option 1 · Fewest changes  2 changes · no one leaves a group
   ✂ Remove the password-reset right HELPDESK holds on HELPDESK-SVC.
     HELPDESK's 2 members (HELPDESK-SVC, JDOE) lose only this right: reset HELPDESK-SVC's password.

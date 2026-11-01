@@ -209,8 +209,8 @@ class ReportGenerator:
         if not self.remediation_plans:
             return ""
         esc = html.escape
-        out = ['<h2>Remediation Options</h2><p class="meta">Each option breaks every route, '
-               'including routes not shown (verified). Mark access people need for their job '
+        out = ['<h2>Remediation Options</h2><p class="meta">Each option breaks every route in '
+               'the imported graph, including routes not shown. Mark access people need for their job '
                'with <code>--keep SRC-&gt;DST</code> and no option will remove it.</p>']
         if self.keep:
             out.append('<p class="meta">Kept as required: '
@@ -265,7 +265,8 @@ class ReportGenerator:
 
         if self.remediation_plans:
             out += ["## Remediation Options", "",
-                    "Each option breaks every route, including routes not shown (verified). "
+                    "Each option breaks every route in the imported graph, including routes "
+                    "not shown. "
                     "Mark access people need for their job with `--keep 'SRC->DST'` and no "
                     "option will remove it.", ""]
             if self.keep:

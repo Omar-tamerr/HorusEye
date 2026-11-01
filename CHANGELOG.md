@@ -33,8 +33,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   paths, HorusEye compares alternative fixes: *Fewest changes*, *Keep group
   memberships* (narrow the groups' permissions instead of removing anyone) and
   *Fix nearest the targets*. Each is a minimum set of changes (max-flow /
-  min-cut) that breaks **every** route — including routes not displayed — and
-  is re-verified by search. Every change says who is affected and what they
+  min-cut) that breaks **every route in the imported graph** — including
+  routes not displayed — and is re-checked by search. Every change says who is affected and what they
   lose: a removed membership lists all the rights the user loses with it; a
   narrowed group permission lists every member who loses that one right.
   Shown in the CLI, the explorer (pick an option and the ✂ marks move on the

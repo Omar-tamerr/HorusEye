@@ -741,7 +741,7 @@ function renderFix(){
     var k=Math.min(S.plan,PL.length-1),p=PL[k],n=p.changes.length;
     var h='<div class="lab">Remediation</div><h3>✂ '+(k===0?'Fix this first':esc(p.title))+'</h3>'
       +'<p class="muted small">'+(n===1?'This one change breaks':'These '+n+' changes together break')
-      +' every route, including any not drawn here (verified).</p><ol class="fixes">'+p.changes.map(changeItem).join("")+'</ol>';
+      +' every route in the imported graph, including any not drawn here.</p><ol class="fixes">'+p.changes.map(changeItem).join("")+'</ol>';
     if(PL.length>1){h+='<div class="lab">Compare options</div><div class="opts">'
       +PL.map(function(q,i){return '<button type="button" class="opt'+(i===k?' on':'')+'" data-plan="'+i+'"><b>Option '+(i+1)+' · '+esc(q.title)+'</b>'
         +'<span>'+planMeta(q)+'</span><span>'+esc(q.summary)+'</span></button>';}).join("")+'</div>';}
