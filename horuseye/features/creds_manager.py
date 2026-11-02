@@ -137,7 +137,8 @@ class CredsManager:
         print(f"\n{'='*60}")
         print(f"  𓂀  VALID CREDENTIALS ({len(self._creds)} found)")
         print(f"{'='*60}")
-        print(f"  {'Domain\\User':<35}  {'Password':<25}  Source")
+        account = "Domain\\User"   # no backslash inside f-string braces before Python 3.12
+        print(f"  {account:<35}  {'Password':<25}  Source")
         print(f"  {'-'*35}  {'-'*25}  {'-'*12}")
         for c in self._creds:
             secret = c.get("password") or f"NTLM:{c.get('hash','')[:12]}..."

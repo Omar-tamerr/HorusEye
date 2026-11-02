@@ -44,3 +44,8 @@ jobs:
           python horuseye.py --help
           python horuseye.py --check-deps
           horuseye --help
+
+      - name: Smoke test (full analysis of the bundled lab)
+        run: |
+          horuseye --bloodhound examples/acme-lab --domain ACME.LAB --dc 10.10.0.5 --graph --owned JDOE@ACME.LAB --json smoke.json
+          horuseye --bloodhound examples/acme-lab --domain ACME.LAB --dc 10.10.0.5 --graph --webapps examples/acme-lab-webapp/portal-confirmed.json

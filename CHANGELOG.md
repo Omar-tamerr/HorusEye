@@ -22,6 +22,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   "paths"/"Attack Path(s)" — they count findings, not attack paths.
 
 ### Fixed
+- **Full analysis crashed on Python 3.8–3.11** with "f-string expression part
+  cannot include a backslash" (`features/creds_manager.py`): syntax only Python
+  3.12 accepts, in a module the tests never imported. New guards: every module is
+  compiled and imported on each CI Python, a test flags 3.12-only f-strings when
+  run on 3.12+, and CI now smoke-tests a full analysis of the bundled lab.
 - **Remediation impact could overstate choke points.** It removed the whole
   node an edge pointed to instead of the edge itself, so a second route into
   the same object was missed and an edge could be wrongly reported as the
