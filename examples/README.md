@@ -69,3 +69,34 @@ The same report runs on the website as the
 
 > Generate larger synthetic domains for benchmarking with
 > `python scripts/benchmark.py`, which uses `horuseye.synthetic`.
+
+---
+
+# Example dataset — `karnak-lab` (domain exposure)
+
+A **synthetic** 1,245-user domain (`KARNAK.LAB`) in SharpHound JSON, plus a
+Certipy export in `adcs/`. Every name, SID and host is invented. It exists to
+show **domain exposure**: how many users can reach Tier-0, and the fewest
+changes that take that to zero.
+
+```bash
+horuseye --bloodhound examples/karnak-lab --certipy examples/karnak-lab/adcs/karnak_Certipy.json \
+    --domain KARNAK.LAB --dc 10.20.0.10 --explorer karnak.html
+
+# Routes from one helpdesk user, with the remediation options
+horuseye --bloodhound examples/karnak-lab --certipy examples/karnak-lab/adcs/karnak_Certipy.json \
+    --domain KARNAK.LAB --dc 10.20.0.10 --graph --owned 'K.EID@KARNAK.LAB'
+```
+
+| Planted weakness | Who it exposes |
+|---|---|
+| Template `KarnakUser`: ESC1, enrollable by Domain Users | every user |
+| `IT-SUPPORT` is local admin on all 300 workstations; `ADM-RAMSES` (Domain Admin) is signed in to `WS-0142` | 120 IT-Support members |
+| `HELPDESK` can reset `SVC-BACKUP`'s password; `SVC-BACKUP` can DCSync | 40 helpdesk members, and SVC-BACKUP |
+| `GPO-EDITORS` can edit `DC SECURITY BASELINE`, linked to the Domain Controllers OU | 8 GPO editors |
+
+Expected exposure: **1,211 of 1,211 users (100%)**, and four changes take it to
+zero (165 → 49 → 8 → 0 users left). Open `karnak.html`, press ✂ Apply on each
+change, and watch the number fall.
+
+Rebuild it (deterministic, same files every run): `python scripts/make_karnak_lab.py`.
