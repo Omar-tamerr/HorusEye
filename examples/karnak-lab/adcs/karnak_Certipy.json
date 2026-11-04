@@ -1,0 +1,76 @@
+{
+  "Certificate Authorities": {
+    "0": {
+      "CA Name": "KARNAK-CA",
+      "DNS Name": "srv-app01.karnak.lab",
+      "Certificate Subject": "CN=KARNAK-CA, DC=KARNAK, DC=LAB",
+      "Web Enrollment": "Disabled",
+      "User Specified SAN": "Disabled",
+      "Request Disposition": "Issue",
+      "Permissions": {
+        "Owner": "KARNAK.LAB\\Administrators",
+        "Access Rights": {
+          "ManageCa": [
+            "KARNAK.LAB\\Domain Admins"
+          ],
+          "ManageCertificates": [
+            "KARNAK.LAB\\Domain Admins"
+          ],
+          "Enroll": [
+            "KARNAK.LAB\\Authenticated Users"
+          ]
+        }
+      }
+    }
+  },
+  "Certificate Templates": {
+    "0": {
+      "Template Name": "KarnakUser",
+      "Display Name": "Karnak User",
+      "Certificate Authorities": [
+        "KARNAK-CA"
+      ],
+      "Enabled": true,
+      "Client Authentication": true,
+      "Enrollee Supplies Subject": true,
+      "Requires Manager Approval": false,
+      "Extended Key Usage": [
+        "Client Authentication"
+      ],
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "KARNAK.LAB\\Domain Admins",
+            "KARNAK.LAB\\Domain Users"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "KARNAK.LAB\\Administrator",
+          "Write Property Principals": [
+            "KARNAK.LAB\\Domain Admins"
+          ]
+        }
+      },
+      "[!] Vulnerabilities": {
+        "ESC1": "'KARNAK.LAB\\\\Domain Users' can enroll, enrollee supplies subject and template allows client authentication"
+      }
+    },
+    "1": {
+      "Template Name": "User",
+      "Display Name": "User",
+      "Certificate Authorities": [
+        "KARNAK-CA"
+      ],
+      "Enabled": true,
+      "Client Authentication": true,
+      "Enrollee Supplies Subject": false,
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "KARNAK.LAB\\Domain Users"
+          ]
+        }
+      }
+    }
+  }
+}
