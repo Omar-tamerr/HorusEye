@@ -49,3 +49,5 @@ jobs:
         run: |
           horuseye --bloodhound examples/acme-lab --domain ACME.LAB --dc 10.10.0.5 --graph --owned JDOE@ACME.LAB --json smoke.json
           horuseye --bloodhound examples/acme-lab --domain ACME.LAB --dc 10.10.0.5 --graph --webapps examples/acme-lab-webapp/portal-confirmed.json
+          horuseye --bloodhound examples/karnak-lab --certipy examples/karnak-lab/adcs/karnak_Certipy.json --domain KARNAK.LAB --dc 10.20.0.10 --explorer karnak.html --json karnak.json
+          horuseye --bloodhound examples/karnak-lab --certipy examples/karnak-lab/adcs/karnak_Certipy.json --domain KARNAK.LAB --dc 10.20.0.10 --diff karnak.json --fail-on exposure-up --fail-on new-route

@@ -10,7 +10,7 @@ and produces an offline report for red and blue teams. Complements BloodHound.
 ![Python](https://img.shields.io/badge/Python-3.8%2B-blue?style=flat-square&logo=python)
 ![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows-purple?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
-![Version](https://img.shields.io/badge/Version-2.3-red?style=flat-square)
+![Version](https://img.shields.io/badge/Version-2.4-red?style=flat-square)
 ![Tests](https://img.shields.io/badge/tests-pytest-success?style=flat-square)
 ![Author](https://img.shields.io/badge/Author-Omar%20Tamer-gold?style=flat-square)
 
@@ -27,16 +27,21 @@ and produces an offline report for red and blue teams. Complements BloodHound.
 ## What It Does
 
 Point HorusEye at the data you already collect (a SharpHound/BloodHound export,
-plus optional Certipy, ldapdomaindump and NetExec output) and it answers three
+plus optional Certipy, ldapdomaindump and NetExec output) and it answers four
 questions:
 
-1. **How does an attacker reach Domain Admin from here?** It builds a control
+1. **How many of our users can reach Domain Admin, and what takes that to
+   zero?** **Domain exposure** counts every enabled user with a route to
+   Tier-0, then finds the fewest changes that bring it to 0%, and the biggest
+   single fixes. In the explorer it's live: apply a fix and watch the number
+   drop. In CI, it fails the build when a change exposes more users.
+2. **How does an attacker reach Domain Admin from here?** It builds a control
    graph and finds the shortest routes from a foothold to Tier-0, with the
    evidence behind every step and whether that step is observed in the data or
    only inferred.
-2. **Is there one fix that breaks them all?** It names the **choke points**:
+3. **Is there one fix that breaks them all?** It names the **choke points**:
    single relationships whose removal breaks every route in the imported graph.
-3. **Which fix should we actually make?** It compares **remediation options**
+4. **Which fix should we actually make?** It compares **remediation options**
    side by side (fewest changes, keep group memberships, fix nearest the
    targets) and shows who loses what access with each. Mark access people need
    for their job with `--keep`, and it is never proposed.
@@ -63,7 +68,11 @@ fix list you can hand to the team that owns the change.
 git clone https://github.com/Omar-tamerr/HorusEye && cd HorusEye
 pip install -e .
 
-# The bundled synthetic lab: 2 routes to Domain Admin, 1 choke point
+# Domain exposure on a synthetic 1,245-user domain: 100% of users -> 0% in 4 changes
+horuseye --bloodhound examples/karnak-lab --certipy examples/karnak-lab/adcs/karnak_Certipy.json \
+    --domain KARNAK.LAB --dc 10.20.0.10 --explorer karnak.html
+
+# The small synthetic lab: 2 routes to Domain Admin, 1 choke point
 horuseye --bloodhound examples/acme-lab --domain ACME.LAB --dc 10.10.0.5 \
     --graph --owned 'JDOE@ACME.LAB' --explorer acme.html
 
@@ -75,18 +84,32 @@ horuseye --bloodhound examples/acme-lab --domain ACME.LAB --dc 10.10.0.5 \
 horuseye --bloodhound ./bh/ --domain corp.local --dc 10.10.10.5 \
     --graph --owned 'bob@corp.local' \
     --explorer report.html --json report.json --fail-on high
+
+# Next collection: fail if a change reopened a route or exposed more users
+horuseye --bloodhound ./bh-new/ --domain corp.local --dc 10.10.10.5 --owned 'bob@corp.local' \
+    --diff report.json --fail-on exposure-up --fail-on new-route
 ```
 
-Open `acme.html` in any browser, or try the
-[live demo](https://omar-tamerr.github.io/HorusEye/demo.html) without
-installing anything. Full details: [Installation](#installation),
+Open `karnak.html` in any browser, or try it without installing anything:
+the [exposure demo](https://omar-tamerr.github.io/HorusEye/exposure-demo.html)
+(apply the fixes, watch 1,211 users drop to 0) and the
+[attack-path demo](https://omar-tamerr.github.io/HorusEye/demo.html). Full details: [Installation](#installation),
 [Attack Paths](#attack-paths), [More Examples](#more-examples).
 
 ---
 
-## What's New in v2.3
+## What's New in v2.4
 
-**New on `main` (next release):** remediation options compared side by side, with who loses what access and `--keep` for access people need; and a redesigned attack-path view in the explorer. See [Attack Paths](#attack-paths).
+- **Domain exposure.** One number for the whole domain: how many enabled users can reach Tier-0, the **fewest changes that bring it to zero** (each with the users left after it), and the **biggest single fixes**. Shown in the CLI, every report and the JSON (`exposure`). See [Domain Exposure](#domain-exposure).
+- **Live what-if in the explorer.** Apply a fix, or cut any relationship in the attack-path graph, and the page re-runs the reachability search offline: the number drops as you go.
+- **Retest drift for CI.** `--diff` now compares attack routes and exposure, not just findings, and names who gained a route. `--fail-on new-route` and `--fail-on exposure-up` exit 4 when a fix didn't hold or a change reopened a route.
+- **Many more real routes in the graph:** ADCS from Certipy (ESC1, 2, 3, 4, 6, 7, 8, 11, 15), resource-based delegation (configured, or writable via `AddAllowedToAct` / `WriteAccountRestrictions`), SID history, LAPS and gMSA password readers, and **GPOs applied through OU links** (respecting blocked inheritance and enforced links).
+- **Real Certipy output parses.** The parser now reads what `certipy find -json` actually writes (`[!] Vulnerabilities`, nested permissions, `"Enabled"`/`"Disabled"` strings, CA-level findings); before, real exports produced no ADCS findings.
+- **Footholds hold what every user can do.** `--owned bob` now also follows routes open to Domain Users / Authenticated Users, so a plan no longer claims to break every route while an ESC1 open to everyone remains.
+- **Remediation options** compared side by side, with who loses what access and `--keep` for access people need; and a redesigned attack-path view in the explorer (both from the previous `main`).
+- A synthetic 1,245-user example (`examples/karnak-lab`, rebuilt by `scripts/make_karnak_lab.py`) and a second live demo.
+
+<details><summary><b>What was new in v2.3</b></summary>
 
 - **Interactive offline explorer (`--explorer`).** One self-contained HTML file — a dashboard, a clickable attack-path graph (nodes/edges → evidence, choke points highlighted red), and a filterable findings explorer. No server, no external requests; open it anywhere, hand it to a client.
 - **Evidence & confidence on every finding.** Each finding now carries a `rule_id`, a `confidence` level with a stated reason, and structured **evidence** — the actual ACEs/objects behind it — so it can be reproduced from source data. Aggregated findings keep every affected object; nothing is lost to brevity.
@@ -95,6 +118,8 @@ installing anything. Full details: [Installation](#installation),
 - **Automation-grade output.** Reports are **byte-deterministic** (`SOURCE_DATE_EPOCH`), and a documented **exit-code taxonomy** (0/1/2/3) lets CI tell "clean" from "findings" from "incomplete".
 - **Privacy & AI safety.** `--ai-redact` masks emails, IPs, domain and account names before any request; AI output is validated and can never overwrite a verified field.
 - **Honest UX.** The no-input help now describes the real CLI (the old phase-command help was misleading), and `SECURITY.md` documents intended use, data egress, and reporting.
+
+</details>
 
 <details><summary><b>What was new in v2.2</b></summary>
 
@@ -122,9 +147,9 @@ See the [full changelog](CHANGELOG.md) and the [Roadmap](#roadmap).
 
 ## Contents
 
-- [What It Does](#what-it-does) · [Quick Start](#quick-start) · [What's New](#whats-new-in-v23)
+- [What It Does](#what-it-does) · [Quick Start](#quick-start) · [What's New](#whats-new-in-v24)
 - [Features](#features) · [Installation](#installation) · [Input Sources](#input-sources)
-- [Attack Detection](#attack-detection) · [Attack Paths & Remediation Options](#attack-paths)
+- [Attack Detection](#attack-detection) · [Domain Exposure](#domain-exposure) · [Attack Paths & Remediation Options](#attack-paths)
 - [Reports](#reports) · [AI Analysis](#ai-analysis) · [More Examples](#more-examples)
 - [Full CLI Reference](#full-cli-reference) · [Project Structure](#project-structure) · [Testing](#testing) · [Roadmap](#roadmap)
 - [Offensive Helpers (Labs & CTF)](#offensive-helpers-labs--ctf): hash cracking, wordlists,
@@ -147,7 +172,8 @@ See the [full changelog](CHANGELOG.md) and the [Roadmap](#roadmap).
 | **Remediation** | Fix options | Alternatives compared side by side, with who loses what access; `--keep` for required access |
 | **Reporting** | Explorer | One offline HTML file: dashboard, interactive graph, fix options, findings |
 | **Reporting** | HTML / Markdown / JSON | Dark-theme report, Mermaid diagrams, versioned JSON schema |
-| **Reporting** | Retest & CI | `--diff` (new / fixed / unchanged), `--fail-on`, deterministic output, exit codes |
+| **Exposure** | Domain exposure | Users with a route to Tier-0, fewest changes to 0%, biggest single fixes, live what-if |
+| **Reporting** | Retest & CI | `--diff` (findings, routes, exposure), `--fail-on` severity / `new-route` / `exposure-up`, deterministic output, exit codes |
 | **AI** | Narratives (optional) | Plain-English explanation per finding; `--ai-redact` masks names first |
 | **Labs** | [Offensive helpers](#offensive-helpers-labs--ctf) | Hash cracking, wordlists, spraying, lateral movement — some still stubs |
 
@@ -283,9 +309,81 @@ Findings are scored **0–100**, combining severity with an exploitability-ease 
 
 ---
 
+## Domain Exposure
+
+Attack paths answer "what can *this* user reach?". Exposure answers it for
+**every** user at once: how many enabled accounts have a route to Tier-0 (or to
+`--target`), and what is the smallest set of changes that takes that to zero.
+It runs on every analysis; nothing to switch on.
+
+```
+──────────────────────────── [ 𓂀 DOMAIN EXPOSURE ] ─────────────────────────────
+  1,211 of 1,211 users (100%) can reach Tier-0
+  ██████████████████████████████
+  Every user is exposed through DOMAIN USERS@KARNAK.LAB.
+
+  𓂀 Fewest changes to reach 0% (4 changes, together)
+    ✂ 1. Remove the enrollment right DOMAIN USERS holds on template KarnakUser, ...  → 165 users left
+    ✂ 2. Keep ADM-RAMSES off WS-0142.KARNAK.LAB: Tier-0 accounts should only ...    → 49 users left
+    ✂ 3. Remove replication rights (Get-Changes / Get-Changes-All) from SVC-BACKUP.  → 8 users left
+    ✂ 4. Remove the GenericWrite permission GPO-EDITORS holds on DC SECURITY BASELINE. → 0 users left
+
+  𓂀 Biggest single fixes (each on its own)
+    ✂ Remove the enrollment right DOMAIN USERS holds on template KarnakUser, ...  1,046 users cut off
+```
+
+*(From the bundled synthetic `examples/karnak-lab`.)*
+
+- **Who counts:** enabled users, not Tier-0 accounts. A user is exposed when a
+  route leads from them, or from a group every user is in (Domain Users,
+  Authenticated Users, Everyone), to a target.
+- **The plan** is a minimum cut over every exposed user at once (the one
+  closest to the targets among the smallest), so it is the fewest changes that
+  reach zero in the imported graph. Changes are ordered so each removes as many
+  users as possible, with the count left after each. `--keep` access is never
+  proposed; GPO links and reachability are never proposed either.
+- **Biggest single fixes** are exact: each was re-checked by search.
+- **What it doesn't count** is stated in every report: Kerberoastable and
+  AS-REP roastable accounts (they need a crackable password), ADCS ESC5/9/10/
+  12/13/14/16, trusts, GPO security filtering and WMI filters, credentials
+  outside AD, and sessions not seen at collection time.
+
+**Live what-if.** In the explorer (`--explorer`), the Overview opens on the
+exposure card. Press ✂ Apply on any change, or select any relationship in
+Attack Paths and press ✂ Cut, and the page re-runs the reachability search
+offline, in the browser: the number, the bar and the "still exposed" list
+update as you go. It's the same search the engine runs, checked by the tests.
+
+### Retest drift in CI
+
+A path closed today can come back with the next delegation or permission
+change. Keep the JSON from each run and compare the next one against it:
+
+```bash
+horuseye --bloodhound ./bh-monday/ --domain corp.local --owned 'bob@corp.local' --json baseline.json
+horuseye --bloodhound ./bh-friday/ --domain corp.local --owned 'bob@corp.local' \
+    --diff baseline.json --fail-on exposure-up --fail-on new-route
+```
+
+```
+──────────────────────────────── [ 𓂀 RETEST DIFF ] ─────────────────────────────
+  Exposure  3 → 4 users (60% → 80%) ▲
+    ✚ gained a route: SVC-SQL@ACME.LAB
+  Routes  ✚ new: 0   ✓ closed: 0   = still open: 2
+✖ exposure rose from 3 to 4 users (1 newly exposed) — failing (exit 4).
+```
+
+`--diff` compares findings, attack routes (by their steps, so a v2.3 report
+still compares) and exposure, and the JSON gains a `retest` block with the
+details. `--fail-on` can be given more than once: `critical`/`high`/`medium`/
+`low` exit 2 on findings, `new-route` and `exposure-up` exit 4 on drift (both
+need `--diff`).
+
+---
+
 ## Attack Paths
 
-`--graph` is the difference between a list of problems and a plan. HorusEye builds a directed **control graph** — where an edge `A → B` means "control of A yields control of B" — from group membership, abusable ACLs, local-admin rights (`AdminTo`), sessions (`HasSession`), DCSync rights, and delegation, then finds the **shortest route from a foothold to Domain Admin** and prints the ordered steps with the command for each.
+`--graph` is the difference between a list of problems and a plan. HorusEye builds a directed **control graph** — where an edge `A → B` means "control of A yields control of B" — from group membership, abusable ACLs, local-admin rights (`AdminTo`), sessions (`HasSession`), DCSync rights, delegation (unconstrained, constrained and resource-based), SID history, LAPS and gMSA password readers, GPOs applied through OU links, and ADCS from Certipy (ESC1, 2, 3, 4, 6, 7, 8, 11, 15), then finds the **shortest route from a foothold to Domain Admin** and prints the ordered steps with the command for each.
 
 ```bash
 # What can a given user reach?
@@ -515,8 +613,9 @@ AI + Output:
   --markdown FILE       Export Markdown report (Mermaid attack-path diagrams)
   --explorer FILE       Interactive offline HTML explorer (dashboard+graph+findings)
   --json FILE           Export JSON findings (schema horuseye.report/2)
-  --diff OLD.json       Retest: compare to a previous JSON report
-  --fail-on LEVEL       Exit non-zero if a finding at/above LEVEL exists (CI)
+  --diff OLD.json       Retest: compare findings, routes and exposure to a previous JSON report
+  --fail-on GATE        CI gate, repeatable: critical|high|medium|low (exit 2 on findings),
+                        new-route|exposure-up (exit 4 on drift; need --diff)
   --severity LEVEL      Filter: critical | high | all
   --config              Configure persistent settings
   --check-deps          Report which external tools are on PATH
@@ -577,10 +676,13 @@ pip install -e ".[dev]"   # installs pytest
 pytest -q
 ```
 
-166 tests cover the BloodHound parser, the scorer, the full detection engine,
-noise reduction, the knowledge base, the attack-path graph and remediation
-options, report exports, the
-retest diff, and the AI layer (with a fake SDK — no network). A regression guard
+212 tests cover the BloodHound and Certipy parsers, the scorer, the full
+detection engine, noise reduction, the knowledge base, the attack-path graph
+(including ADCS, RBCD, SID history, LAPS/gMSA and GPO links) and remediation
+options, domain exposure (checked against brute force on random domains), the
+explorer's what-if (checked against the engine), report exports, the retest
+diff and drift gates (end to end through the CLI), and the AI layer (with a
+fake SDK — no network). A regression guard
 fails if the detector ever stops emitting any of the 13 types or stops producing
 CRITICAL findings. CI runs the suite plus a `--help` / `--check-deps` smoke test
 on Linux and Windows (the Windows job guards the console-encoding fix).
@@ -600,14 +702,19 @@ releases:
 - **AI chain-ordering.** Extend the narrative layer (shipped on the current
   model in v2.2) from per-finding narratives to full attack-chain reasoning
   over the computed graph paths.
-- **Graph coverage.** Add ADCS and shadow-credential edges to the attack-path
-  graph, and weighted paths (by exploitation ease, not just hop count).
+- **Graph coverage.** ADCS ESC9/ESC10/ESC13+ (they need more than Certipy's
+  summary), trusts, Kerberoastable accounts as weighted "if cracked" steps, and
+  weighted paths (by exploitation ease, not just hop count).
+- **Exposure over time.** Keep a history of runs and chart exposure per
+  collection, not just against one baseline.
 
 *Shipped in v2.2: the attack-path graph engine, the defender-facing knowledge
 base, and the modernized AI layer. Shipped in v2.3: the finding evidence/
 confidence schema, parser provenance, graph trust + remediation impact,
 deterministic output + CI exit codes, redaction hardening, benchmarks, a public
-Python API, and the interactive offline explorer.*
+Python API, and the interactive offline explorer. Shipped in v2.4: domain
+exposure with a live what-if, route and exposure drift gates, and ADCS, RBCD,
+SID history, LAPS/gMSA and GPO-link routes.*
 
 Contributions and issues are welcome at the
 [issue tracker](https://github.com/Omar-tamerr/HorusEye/issues).

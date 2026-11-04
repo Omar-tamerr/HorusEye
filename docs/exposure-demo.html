@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HorusEye Live Demo — domain exposure in KARNAK.LAB</title>
+<meta name="description" content="Every user in a synthetic 1,200-user domain can reach Domain Admin. Apply four fixes and watch exposure drop to zero, live, in an offline HorusEye report.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="HorusEye Live Demo — domain exposure in KARNAK.LAB">
+<meta property="og:description" content="Every user in a synthetic 1,200-user domain can reach Domain Admin. Apply four fixes and watch exposure drop to zero, live, in an offline HorusEye report.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="HorusEye Live Demo — domain exposure in KARNAK.LAB">
+<meta name="twitter:description" content="Every user in a synthetic 1,200-user domain can reach Domain Admin. Apply four fixes and watch exposure drop to zero, live, in an offline HorusEye report.">
+<meta property="og:url" content="https://omar-tamerr.github.io/HorusEye/exposure-demo.html">
+<link rel="canonical" href="https://omar-tamerr.github.io/HorusEye/exposure-demo.html">
+<meta property="og:image" content="https://omar-tamerr.github.io/HorusEye/assets/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="HorusEye — See the path. Know the fix.">
+<meta name="twitter:image" content="https://omar-tamerr.github.io/HorusEye/assets/og-image.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 42'%3E%3Cg fill='none' stroke='%23C09A3C' stroke-width='4' stroke-linecap='round'%3E%3Cpath d='M2 9 Q32 -7 62 9'/%3E%3Cpath d='M5 20 Q32 1 59 20 Q32 36 5 20 Z'/%3E%3Cpath d='M29 29 L26.5 40'/%3E%3Cpath d='M39 28 Q45 39 53 34 Q57 31 53 28'/%3E%3C/g%3E%3Ccircle cx='32' cy='19' r='7' fill='%23C09A3C'/%3E%3C/svg%3E">
+<style>
+ :root{--bg:#0b0b0d;--panel:#141417;--panel2:#1a1a1e;--line:#27272c;--fg:#e9e9ec;
+   --muted:#9a9aa3;--dim:#6a6a72;--gold:#C09A3C;--red:#E4002B;--red2:#ff2d52;--green:#3fae6a;
+   --amber:#f0a429;--code:#00ff9c;--crit:#ff4444;--high:#ff8800;--med:#ffcc00;--low:#88cc00;--info:#888}
+ *{box-sizing:border-box}
+ html{scroll-behavior:smooth}
+ body{margin:0;background:var(--bg);color:var(--fg);line-height:1.5;
+   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:14px}
+ a{color:#5ab0ff}
+ code,pre,.mono{font-family:ui-monospace,"SF Mono",Consolas,monospace}
+ .eye-ic{width:30px;height:20px;flex:none;color:var(--gold)}
+ .eye-ic path{fill:none;stroke:currentColor;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round}
+ .eye-ic .pupil{fill:currentColor}
+
+ /* demo bar (website demo only) */
+ .demobar{display:flex;align-items:center;gap:12px;padding:8px 20px;background:#110a0c;
+   border-bottom:1px solid #3a1820;font-size:13px;flex-wrap:wrap}
+ .demobar a{text-decoration:none}
+ .demobar .home{color:#fff;font-weight:600}
+ .demobar .home:hover{color:var(--gold)}
+ .demotag{background:var(--red);color:#fff;font-weight:700;font-size:11px;letter-spacing:.1em;
+   text-transform:uppercase;padding:2px 8px;border-radius:9px}
+ .demonote{color:var(--muted)}
+ .demobar .sp{flex:1}
+ .demobar .ghl{color:var(--muted)} .demobar .ghl:hover{color:#fff}
+ .demobar .get{background:linear-gradient(180deg,var(--red2),var(--red));color:#fff;font-weight:700;
+   padding:5px 12px;border-radius:8px;white-space:nowrap}
+
+ header{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;
+   gap:14px;flex-wrap:wrap;background:var(--panel)}
+ header .brand{display:flex;align-items:center;gap:10px}
+ header h1{margin:0;font-size:18px;color:#fff;letter-spacing:.2px}
+ header h1 b{color:var(--red2)}
+ header .meta{color:var(--muted);font-size:13px}
+ .tiles{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+ .tile{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:5px 12px;
+   text-align:center;min-width:62px}
+ .tile b{display:block;font-size:19px;line-height:1.2} .tile span{font-size:10.5px;color:var(--muted);letter-spacing:.06em}
+ nav.tabs{display:flex;gap:2px;padding:0 20px;border-bottom:1px solid var(--line);background:var(--panel);
+   overflow-x:auto;position:sticky;top:0;z-index:5}
+ nav.tabs button{background:none;border:none;color:var(--muted);padding:12px 16px;cursor:pointer;
+   font-size:14px;border-bottom:2px solid transparent;white-space:nowrap;font-family:inherit}
+ nav.tabs button:hover{color:#fff}
+ nav.tabs button.active{color:#fff;border-bottom-color:var(--red)}
+ main{padding:18px 20px;max-width:1400px;margin:0 auto}
+ .view{display:none} .view.active{display:block}
+ h2{color:#fff;font-size:18px;margin:0 0 4px}
+ h3{color:#fff;font-size:15px;margin:2px 0 6px}
+ .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+ .lab{color:var(--gold);font-size:11px;text-transform:uppercase;letter-spacing:.09em;font-weight:700;margin:12px 0 4px}
+ .card>.lab:first-child{margin-top:0}
+ .muted{color:var(--muted)} .small{font-size:12.5px} .red{color:var(--red2)} .amber{color:var(--amber)}
+ .arrow{color:var(--dim)}
+ .pill{color:#111;font-weight:700;padding:1px 7px;border-radius:9px;font-size:11px;white-space:nowrap}
+ .sev-CRITICAL{background:var(--crit)} .sev-HIGH{background:var(--high)}
+ .sev-MEDIUM{background:var(--med)} .sev-LOW{background:var(--low)} .sev-INFO{background:var(--info)}
+ .tag{display:inline-block;font-size:11px;border:1px solid var(--line);color:var(--muted);
+   padding:1px 8px;border-radius:9px;margin:0 4px 0 0;white-space:nowrap}
+ .tag.t-choke{border-color:var(--red);color:var(--red2)} .tag.amber{border-color:#6b4a12}
+ .tag.t-rel{color:#fff}
+ .btn{display:inline-block;background:var(--panel2);border:1px solid var(--line);color:#fff;
+   padding:7px 13px;border-radius:8px;text-decoration:none;font-size:13px}
+ .btn:hover{border-color:var(--gold)}
+ .cmd{display:flex;align-items:flex-start;gap:8px;background:#000;border:1px solid var(--line);
+   border-radius:7px;padding:7px 8px 7px 10px;margin:5px 0}
+ .cmd code{flex:1;color:var(--code);font-size:12px;white-space:pre-wrap;word-break:break-all}
+ .cmd button{background:var(--panel2);border:1px solid var(--line);color:var(--muted);border-radius:6px;
+   padding:2px 8px;font-size:11px;cursor:pointer;flex:none;font-family:inherit}
+ .cmd button:hover{color:#fff}
+ ul,ol{margin:4px 0 4px 18px;padding:0} li{margin:3px 0}
+
+ /* overview */
+ .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+ table{width:100%;border-collapse:collapse;font-size:13px}
+ th{color:var(--gold);text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);font-size:12px}
+ td{padding:7px 8px;border-bottom:1px solid #1f1f23;vertical-align:top}
+
+ /* attack paths */
+ .phead{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:12px}
+ .phead .psum{color:var(--muted);font-size:13.5px}
+ .chips{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+ .chip{background:var(--panel2);border:1px solid var(--line);color:var(--muted);padding:6px 12px;
+   border-radius:16px;cursor:pointer;font-size:12.5px;font-family:inherit}
+ .chip:hover{color:#fff}
+ .chip.on{color:#fff;border-color:var(--gold);background:#1f1a10}
+ .gwrap{background-color:var(--panel);
+   background-image:radial-gradient(#25252b 1px,transparent 1px);background-size:22px 22px;
+   border:1px solid var(--line);border-radius:14px;overflow-x:auto;overflow-y:hidden}
+ #gsvg{display:block}
+ #gsvg text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+ .node{cursor:pointer;outline:none}
+ .node rect.box{fill:#1b1b20;stroke:#34343c;stroke-width:1.5;transition:stroke .15s}
+ .node:hover rect.box,.node:focus rect.box{stroke:#77777f}
+ .node.start rect.box{fill:#10251a;stroke:var(--green)}
+ .node.goal rect.box{fill:#2a0f14;stroke:var(--red);filter:drop-shadow(0 0 9px rgba(228,0,43,.5))}
+ .node.sel rect.box{stroke:var(--gold);stroke-width:3}
+ .node .icbg{fill:#26262d}
+ .node.start .icbg{fill:#163a25} .node.goal .icbg{fill:#3d121a}
+ .node .ic{font-size:15px}
+ .node .lbl{fill:#fff;font-size:13px;font-weight:650}
+ .node .sub{fill:var(--muted);font-size:11px}
+ .node .badge{font-size:10px;font-weight:800;letter-spacing:.14em}
+ .node.start .badge{fill:var(--green)} .node.goal .badge{fill:var(--red2)}
+ .edge{cursor:pointer;outline:none}
+ .edge .line{fill:none;stroke:#4c4c56;stroke-width:2.2}
+ .edge.on .line{stroke:var(--gold)}
+ .edge.choke .line{stroke:var(--red)}
+ .edge.inferred .line{stroke-dasharray:7 6}
+ .edge.reach .line{stroke-dasharray:2 6}
+ .tag.green{border-color:#1f5a35;color:var(--green)}
+ .edge.sel .line{stroke-width:4}
+ .edge .flow{fill:none;stroke:#fff;stroke-opacity:.6;stroke-width:2.2;stroke-dasharray:3 13;
+   stroke-linecap:round;display:none;animation:flow 1.1s linear infinite;pointer-events:none}
+ .edge.on .flow{display:inline}
+ .edge .hit{fill:none;stroke:transparent;stroke-width:18}
+ .edge .pill rect{fill:#121215;stroke:#3a3a42;stroke-width:1.2}
+ .edge.on .pill rect{stroke:#7a6430}
+ .edge.choke .pill rect{stroke:var(--red);fill:#1d0b0f}
+ .edge.sel .pill rect{stroke:var(--gold);stroke-width:2}
+ .edge .pill text{fill:#dcdce0;font-size:11px;font-weight:650}
+ .edge.choke .pill text{fill:#ff8a9c}
+ .dim{opacity:.16}
+ @keyframes flow{to{stroke-dashoffset:-32}}
+ @media (prefers-reduced-motion:reduce){.edge .flow{animation:none}}
+ .legend{display:flex;gap:16px;flex-wrap:wrap;color:var(--muted);font-size:12px;margin:8px 2px 16px;align-items:center}
+ .legend i{display:inline-block;vertical-align:middle;margin-right:6px}
+ .legend .sq{width:14px;height:11px;border-radius:3px;border:1.5px solid}
+ .legend .sq.start{background:#10251a;border-color:var(--green)}
+ .legend .sq.goal{background:#2a0f14;border-color:var(--red)}
+ .legend .ln{width:22px;height:0;border-top:2.5px solid var(--gold)}
+ .legend .ln.choke{border-top-color:var(--red)}
+ .legend .ln.dash{border-top:2.5px dashed #8a8a94}
+ .pgrid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:16px;align-items:start}
+ .side{display:grid;gap:16px}
+ .steps{list-style:none;margin:8px 0;padding:0;counter-reset:s}
+ .step{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0;cursor:pointer;
+   background:var(--panel2);transition:border-color .15s}
+ .step:hover{border-color:#44444c} .step.sel{border-color:var(--gold)}
+ .step .stop{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+ .step .num{background:var(--gold);color:#111;font-weight:800;border-radius:50%;width:22px;height:22px;
+   display:inline-flex;align-items:center;justify-content:center;font-size:12px;flex:none}
+ .step .rel{color:var(--gold);font-size:12px;font-weight:700}
+ .step p{margin:6px 0 2px;color:#cfcfd4}
+ .reached{border:1px solid #4a1520;background:#1a0b0e;border-radius:10px;padding:9px 12px;margin:8px 0}
+ .rcard{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0;background:var(--panel2)}
+ .fixes li{margin:6px 0}
+ .fixes a{color:#fff;text-decoration:none;border-bottom:1px dotted #555}
+ .fixes a:hover{color:var(--gold)}
+ .fixes .eff{color:#c4c4ca;font-size:12.5px;margin:3px 0 2px}
+ .opts{display:grid;gap:8px;margin:8px 0 10px}
+ .opt{display:block;width:100%;text-align:left;background:var(--panel2);border:1px solid var(--line);border-radius:10px;
+   padding:9px 12px;color:var(--fg);cursor:pointer;font:inherit}
+ .opt:hover{border-color:#55555e} .opt.on{border-color:var(--red);background:#1d0b0f}
+ .opt b{display:block;font-size:13px} .opt span{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+ .flist{list-style:none;margin:4px 0;padding:0} .flist li{margin:5px 0}
+ .flist a{color:#e9e9ec;text-decoration:none} .flist a:hover{color:var(--gold)}
+
+ /* exposure (live what-if) */
+ .xcard{background:linear-gradient(180deg,#1b0b10,var(--panel) 70%);border:1px solid #3a1820;border-radius:14px;
+   padding:16px 18px;margin-bottom:16px}
+ .xhead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+ .xnum{font-size:46px;font-weight:800;color:var(--red2);line-height:1;font-variant-numeric:tabular-nums}
+ .xnum.zero{color:var(--green)}
+ .xof{font-size:16px;color:#fff} .xof b{font-variant-numeric:tabular-nums}
+ .xbar{height:14px;background:#26262c;border-radius:7px;overflow:hidden;margin:12px 0 6px}
+ .xbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--red),var(--red2));transition:width .6s ease}
+ .xbar i.zero{background:var(--green)}
+ .xstill{color:var(--muted);font-size:12.5px;min-height:18px}
+ .xgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:10px}
+ .xlist{list-style:none;margin:6px 0;padding:0}
+ .xlist li{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--line);
+   border-radius:10px;margin:6px 0;background:var(--panel2);transition:border-color .15s,background .15s}
+ .xlist li.on{border-color:var(--red);background:#1d0b0f}
+ .xlist .xf{flex:1} .xlist .xn{color:var(--muted);font-size:12px;white-space:nowrap}
+ .xtog{flex:none;background:var(--panel);border:1px solid #44444c;color:#fff;border-radius:7px;padding:3px 10px;
+   cursor:pointer;font:inherit;font-size:12px;white-space:nowrap}
+ .xtog:hover{border-color:var(--gold)} li.on .xtog,.xtog.on{background:var(--red);border-color:var(--red)}
+ .xactions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
+ .xactions button{font:inherit;cursor:pointer}
+ .xmini{font-size:12.5px;color:var(--muted);border:1px solid var(--line);border-radius:14px;padding:4px 10px;background:var(--panel2)}
+ .xmini b{color:var(--red2)} .xmini b.zero{color:var(--green)}
+ .edge.wcut .line{stroke:var(--red2);stroke-dasharray:4 5}
+ .edge.wcut .pill rect{stroke:var(--red2);fill:#2a0c12}
+ details.xmore summary{cursor:pointer;color:var(--muted);font-size:12.5px;margin-top:10px}
+ @media(max-width:800px){.xgrid{grid-template-columns:1fr} .xnum{font-size:38px}}
+ @media (prefers-reduced-motion:reduce){.xbar i{transition:none}}
+
+ /* findings */
+ .controls{display:flex;gap:8px;align-items:center;margin:10px 0;flex-wrap:wrap}
+ .controls input{background:var(--panel2);border:1px solid var(--line);color:var(--fg);
+   padding:7px 10px;border-radius:8px;flex:1;min-width:180px;font-family:inherit}
+ .fbtn{background:var(--panel2);border:1px solid var(--line);color:var(--muted);
+   padding:4px 11px;border-radius:14px;cursor:pointer;font-size:12px;font-family:inherit}
+ .fbtn.active{color:#fff;border-color:var(--red)}
+ .tscroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+ #ftab th{cursor:pointer;white-space:nowrap}
+ .frow{cursor:pointer} .frow:hover{background:#18181c}
+ .frow.open{background:#18181c}
+ .detail td{background:var(--panel2);border-left:2px solid var(--red);padding:10px 14px}
+ footer{color:var(--muted);font-size:12px;padding:18px 20px;border-top:1px solid var(--line);margin-top:24px}
+
+ @media(max-width:900px){.pgrid{grid-template-columns:1fr}}
+ @media(max-width:800px){.grid{grid-template-columns:1fr}}
+ @media(max-width:720px){
+   main{padding:14px 12px} header{padding:12px} nav.tabs{padding:0 6px}
+   .tiles{margin-left:0} .demonote{display:none} .demobar{padding:8px 12px}
+   .chips{margin-left:0} .hm{display:none}
+ }
+ @media(max-width:460px){.hsm,.demobar .ghl{display:none} .demobar{gap:8px;flex-wrap:nowrap}}
+</style></head><body>
+<div class="demobar"><a class="home" href="./">← <span class="hsm">HorusEye </span>home</a><span class="demotag">Live demo</span><span class="demonote">Synthetic KARNAK.LAB data (1,245 users) — no real systems</span><span class="sp"></span><a class="ghl" href="https://github.com/Omar-tamerr/HorusEye" target="_blank" rel="noopener">GitHub</a><a class="get" href="./#install">Get HorusEye</a></div>
+<header>
+ <div class="brand"><svg class="eye-ic" viewBox="0 0 64 42" aria-hidden="true"><path d="M2 9 Q32 -7 62 9"/><path d="M5 20 Q32 1 59 20 Q32 36 5 20 Z"/><circle class="pupil" cx="32" cy="19" r="7"/><path d="M29 29 L26.5 40"/><path d="M39 28 Q45 39 53 34 Q57 31 53 28"/></svg><h1>Horus<b>Eye</b> Explorer</h1></div>
+ <div class="meta" id="hmeta"></div>
+ <div class="tiles" id="tiles"></div>
+</header>
+<nav class="tabs" aria-label="Views">
+ <button data-view="overview">Overview</button>
+ <button data-view="paths">Attack Paths</button>
+ <button data-view="findings">Findings</button>
+</nav>
+<main>
+ <section id="v-overview" class="view"></section>
+ <section id="v-paths" class="view"></section>
+ <section id="v-findings" class="view"></section>
+</main>
+<footer>Live demo generated by HorusEye v2.4.0 from the bundled karnak-lab example — synthetic data, no real systems. <a href="./">← Back to the HorusEye site</a></footer>
+<script id="data" type="application/json">{"meta": {"domain": "KARNAK.LAB", "dc": "10.20.0.10", "generated": "2026-11-04", "total": 8, "counts": {"CRITICAL": 2, "HIGH": 6}, "warnings": [], "sources": ["bloodhound", "certipy"]}, "mitre": [{"id": "T1003.001", "name": "OS Credential Dumping: LSASS Memory", "count": 1, "max_severity": "HIGH"}, {"id": "T1003.006", "name": "OS Credential Dumping: DCSync", "count": 1, "max_severity": "CRITICAL"}, {"id": "T1078.002", "name": "Valid Accounts: Domain Accounts", "count": 2, "max_severity": "HIGH"}, {"id": "T1098", "name": "Account Manipulation", "count": 1, "max_severity": "HIGH"}, {"id": "T1484.001", "name": "Domain or Tenant Policy Modification: Group Policy Modification", "count": 2, "max_severity": "HIGH"}, {"id": "T1550.002", "name": "Use Alternate Authentication Material: Pass the Hash", "count": 1, "max_severity": "HIGH"}, {"id": "T1558.003", "name": "Steal or Forge Kerberos Tickets: Kerberoasting", "count": 1, "max_severity": "HIGH"}, {"id": "T1649", "name": "Steal or Forge Authentication Certificates", "count": 1, "max_severity": "CRITICAL"}], "findings": [{"type": "DCSYNC", "title": "DCSync rights: SVC-BACKUP@KARNAK.LAB", "affected": "SVC-BACKUP@KARNAK.LAB", "severity": "CRITICAL", "description": "Principal holds directory-replication rights (getchanges, getchangesall) on the domain. It can replicate secrets from the DC — including the krbtgt hash — without running code on a Domain Controller.", "evidence": [{"source": "acl", "object": "SVC-BACKUP@KARNAK.LAB → KARNAK.LAB", "detail": "getchanges", "file": "karnak_domains.json"}, {"source": "acl", "object": "SVC-BACKUP@KARNAK.LAB → KARNAK.LAB", "detail": "getchangesall", "file": "karnak_domains.json"}], "commands": ["impacket-secretsdump KARNAK.LAB/SVC-BACKUP@10.20.0.10 -just-dc", "impacket-secretsdump KARNAK.LAB/SVC-BACKUP@10.20.0.10 -just-dc-user KARNAK\\\\krbtgt"], "references": ["https://attack.mitre.org/techniques/T1003/006/"], "id": "705ad8e6034c", "confidence": "HIGH", "confidence_reason": "replication ACEs present on the domain object", "rule_id": "DCSYNC", "ease": 1.0, "score": 100, "mitre": [{"id": "T1003.006", "name": "OS Credential Dumping: DCSync"}], "remediation": ["Remove replication rights (Get-Changes / Get-Changes-All / Get-Changes-In-Filtered-Set) from every principal that is not a Domain Controller or a deliberately Tier-0 group.", "Review the domain root ACL and AdminSDHolder for unexpected grants.", "If abuse is suspected, reset the krbtgt password twice (with replication time between resets)."], "detection": ["Event 4662 on the domain object with an access GUID of 1131f6aa-9c07-11d1-f79f-00c04fc2dcd2 (DS-Replication-Get-Changes), 1131f6ad-9c07-11d1-f79f-00c04fc2dcd2 (DS-Replication-Get-Changes-All), 89e95b76-444d-4c62-991a-0facbeda640c (DS-Replication-Get-Changes-In-Filtered-Set) from a non-DC account.", "DRSUAPI (DRSGetNCChanges) replication traffic originating from a host that is not a Domain Controller."]}, {"type": "ADCS_ESC", "rule_id": "ADCS_ESC.ESC1", "title": "ADCS ESC1: KarnakUser", "affected": "KarnakUser", "severity": "CRITICAL", "description": "'KARNAK.LAB\\\\Domain Users' can enroll, enrollee supplies subject and template allows client authentication", "evidence": [{"source": "certipy", "object": "KarnakUser", "detail": "ESC1"}], "commands": ["certipy req -u USER@KARNAK.LAB -p PASS -ca CA -template KarnakUser -upn administrator@KARNAK.LAB", "certipy auth -pfx administrator.pfx -dc-ip 10.20.0.10"], "references": ["https://posts.specterops.io/certified-pre-owned-d95910965cd2"], "id": "40c18909b4cd", "confidence": "HIGH", "confidence_reason": "reported by Certipy template analysis", "ease": 0.95, "score": 95, "mitre": [{"id": "T1649", "name": "Steal or Forge Authentication Certificates"}], "remediation": ["ESC1/ESC2/ESC3: remove 'Supply in the request' (ENROLLEE_SUPPLIES_SUBJECT) or require manager approval; restrict enrollment rights to the intended principals.", "ESC4: remove write rights on the certificate template from non-Tier-0 principals.", "ESC6: clear EDITF_ATTRIBUTESUBJECTALTNAME2 on the CA.", "ESC8: disable HTTP web enrollment or enforce HTTPS with Extended Protection for Authentication.", "Enable strong certificate mapping (KB5014754) on Domain Controllers."], "detection": ["Event 4886 / 4887 (certificate requested / issued) where the SAN differs from the requester.", "Event 4768 with certificate (PKINIT) authentication for privileged accounts."]}, {"type": "ACL_ABUSE", "rule_id": "ACL_ABUSE.forcechangepassword", "title": "Password reset (forcechangepassword): HELPDESK@KARNAK.LAB → SVC-BACKUP@KARNAK.LAB", "affected": "HELPDESK@KARNAK.LAB → SVC-BACKUP@KARNAK.LAB", "severity": "HIGH", "description": "HELPDESK@KARNAK.LAB has password reset (ForceChangePassword) over SVC-BACKUP@KARNAK.LAB. Abusable to pivot toward higher-value objects.", "evidence": [{"source": "acl", "object": "HELPDESK@KARNAK.LAB → SVC-BACKUP@KARNAK.LAB", "detail": "forcechangepassword", "file": "karnak_users.json"}], "commands": ["net rpc password \"SVC-BACKUP\" -U KARNAK.LAB/USER%PASS -S 10.20.0.10"], "references": ["https://bloodhound.readthedocs.io/en/latest/data-analysis/edges.html"], "id": "6650c244cf65", "confidence": "HIGH", "confidence_reason": "ACE present in the directory", "ease": 0.95, "score": 71, "mitre": [{"id": "T1098", "name": "Account Manipulation"}, {"id": "T1078.002", "name": "Valid Accounts: Domain Accounts"}], "remediation": ["Remove the excessive ACE from the principal and apply least privilege on the target object.", "Treat any write/owner/control right over Tier-0 objects as Tier-0 itself — restrict it to Tier-0 admins.", "Never grant control rights to broad groups (Everyone, Authenticated Users, Domain Users).", "Audit delegated permissions on OUs and AdminSDHolder on a schedule."], "detection": ["Event 5136 (directory object modified) on nTSecurityDescriptor, member, servicePrincipalName or msDS-KeyCredentialLink.", "Event 4724 (password reset by another account) and 4738 (user account changed).", "Events 4728 / 4732 / 4756 (member added to a security-enabled group)."]}, {"type": "PASS_THE_HASH", "rule_id": "PASS_THE_HASH.broad_local_admin", "title": "Broad local admin: IT-SUPPORT@KARNAK.LAB on 300 hosts", "affected": "IT-SUPPORT@KARNAK.LAB", "severity": "HIGH", "confidence": "HIGH", "confidence_reason": "AdminTo edges read directly from BloodHound", "description": "IT-SUPPORT@KARNAK.LAB is a local administrator on 300 hosts (e.g. WS-0001.KARNAK.LAB, WS-0002.KARNAK.LAB, WS-0003.KARNAK.LAB, WS-0004.KARNAK.LAB, WS-0005.KARNAK.LAB). Admin rights this wide let one compromised account reach credentials cached across the whole fleet.", "targets": ["WS-0001.KARNAK.LAB", "WS-0002.KARNAK.LAB", "WS-0003.KARNAK.LAB", "WS-0004.KARNAK.LAB", "WS-0005.KARNAK.LAB", "WS-0006.KARNAK.LAB", "WS-0007.KARNAK.LAB", "WS-0008.KARNAK.LAB", "WS-0009.KARNAK.LAB", "WS-0010.KARNAK.LAB", "WS-0011.KARNAK.LAB", "WS-0012.KARNAK.LAB", "WS-0013.KARNAK.LAB", "WS-0014.KARNAK.LAB", "WS-0015.KARNAK.LAB", "WS-0016.KARNAK.LAB", "WS-0017.KARNAK.LAB", "WS-0018.KARNAK.LAB", "WS-0019.KARNAK.LAB", "WS-0020.KARNAK.LAB", "WS-0021.KARNAK.LAB", "WS-0022.KARNAK.LAB", "WS-0023.KARNAK.LAB", "WS-0024.KARNAK.LAB", "WS-0025.KARNAK.LAB", "WS-0026.KARNAK.LAB", "WS-0027.KARNAK.LAB", "WS-0028.KARNAK.LAB", "WS-0029.KARNAK.LAB", "WS-0030.KARNAK.LAB", "WS-0031.KARNAK.LAB", "WS-0032.KARNAK.LAB", "WS-0033.KARNAK.LAB", "WS-0034.KARNAK.LAB", "WS-0035.KARNAK.LAB", "WS-0036.KARNAK.LAB", "WS-0037.KARNAK.LAB", "WS-0038.KARNAK.LAB", "WS-0039.KARNAK.LAB", "WS-0040.KARNAK.LAB", "WS-0041.KARNAK.LAB", "WS-0042.KARNAK.LAB", "WS-0043.KARNAK.LAB", "WS-0044.KARNAK.LAB", "WS-0045.KARNAK.LAB", "WS-0046.KARNAK.LAB", "WS-0047.KARNAK.LAB", "WS-0048.KARNAK.LAB", "WS-0049.KARNAK.LAB", "WS-0050.KARNAK.LAB", "WS-0051.KARNAK.LAB", "WS-0052.KARNAK.LAB", "WS-0053.KARNAK.LAB", "WS-0054.KARNAK.LAB", "WS-0055.KARNAK.LAB", "WS-0056.KARNAK.LAB", "WS-0057.KARNAK.LAB", "WS-0058.KARNAK.LAB", "WS-0059.KARNAK.LAB", "WS-0060.KARNAK.LAB", "WS-0061.KARNAK.LAB", "WS-0062.KARNAK.LAB", "WS-0063.KARNAK.LAB", "WS-0064.KARNAK.LAB", "WS-0065.KARNAK.LAB", "WS-0066.KARNAK.LAB", "WS-0067.KARNAK.LAB", "WS-0068.KARNAK.LAB", "WS-0069.KARNAK.LAB", "WS-0070.KARNAK.LAB", "WS-0071.KARNAK.LAB", "WS-0072.KARNAK.LAB", "WS-0073.KARNAK.LAB", "WS-0074.KARNAK.LAB", "WS-0075.KARNAK.LAB", "WS-0076.KARNAK.LAB", "WS-0077.KARNAK.LAB", "WS-0078.KARNAK.LAB", "WS-0079.KARNAK.LAB", "WS-0080.KARNAK.LAB", "WS-0081.KARNAK.LAB", "WS-0082.KARNAK.LAB", "WS-0083.KARNAK.LAB", "WS-0084.KARNAK.LAB", "WS-0085.KARNAK.LAB", "WS-0086.KARNAK.LAB", "WS-0087.KARNAK.LAB", "WS-0088.KARNAK.LAB", "WS-0089.KARNAK.LAB", "WS-0090.KARNAK.LAB", "WS-0091.KARNAK.LAB", "WS-0092.KARNAK.LAB", "WS-0093.KARNAK.LAB", "WS-0094.KARNAK.LAB", "WS-0095.KARNAK.LAB", "WS-0096.KARNAK.LAB", "WS-0097.KARNAK.LAB", "WS-0098.KARNAK.LAB", "WS-0099.KARNAK.LAB", "WS-0100.KARNAK.LAB"], "evidence": [{"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0001.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0002.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0003.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0004.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0005.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0006.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0007.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0008.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0009.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0010.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0011.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0012.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0013.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0014.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0015.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0016.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0017.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0018.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0019.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0020.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0021.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0022.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0023.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0024.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0025.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0026.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0027.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0028.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0029.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0030.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0031.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0032.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0033.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0034.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0035.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0036.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0037.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0038.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0039.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0040.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0041.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0042.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0043.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0044.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0045.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0046.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0047.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0048.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0049.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0050.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0051.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0052.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0053.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0054.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0055.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0056.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0057.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0058.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0059.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0060.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0061.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0062.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0063.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0064.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0065.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0066.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0067.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0068.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0069.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0070.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0071.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0072.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0073.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0074.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0075.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0076.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0077.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0078.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0079.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0080.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0081.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0082.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0083.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0084.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0085.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0086.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0087.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0088.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0089.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0090.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0091.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0092.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0093.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0094.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0095.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0096.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0097.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0098.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0099.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0100.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0101.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0102.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0103.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0104.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0105.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0106.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0107.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0108.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0109.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0110.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0111.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0112.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0113.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0114.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0115.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0116.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0117.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0118.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0119.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0120.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0121.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0122.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0123.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0124.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0125.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0126.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0127.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0128.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0129.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0130.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0131.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0132.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0133.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0134.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0135.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0136.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0137.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0138.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0139.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0140.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0141.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0142.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0143.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0144.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0145.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0146.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0147.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0148.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0149.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0150.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0151.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0152.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0153.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0154.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0155.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0156.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0157.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0158.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0159.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0160.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0161.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0162.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0163.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0164.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0165.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0166.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0167.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0168.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0169.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0170.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0171.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0172.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0173.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0174.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0175.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0176.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0177.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0178.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0179.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0180.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0181.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0182.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0183.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0184.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0185.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0186.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0187.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0188.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0189.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0190.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0191.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0192.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0193.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0194.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0195.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0196.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0197.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0198.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0199.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0200.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0201.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0202.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0203.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0204.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0205.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0206.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0207.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0208.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0209.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0210.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0211.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0212.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0213.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0214.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0215.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0216.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0217.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0218.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0219.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0220.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0221.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0222.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0223.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0224.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0225.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0226.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0227.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0228.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0229.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0230.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0231.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0232.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0233.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0234.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0235.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0236.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0237.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0238.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0239.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0240.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0241.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0242.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0243.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0244.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0245.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0246.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0247.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0248.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0249.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0250.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0251.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0252.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0253.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0254.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0255.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0256.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0257.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0258.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0259.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0260.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0261.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0262.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0263.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0264.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0265.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0266.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0267.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0268.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0269.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0270.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0271.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0272.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0273.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0274.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0275.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0276.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0277.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0278.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0279.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0280.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0281.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0282.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0283.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0284.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0285.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0286.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0287.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0288.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0289.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0290.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0291.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0292.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0293.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0294.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0295.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0296.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0297.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0298.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0299.KARNAK.LAB", "detail": "AdminTo"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0300.KARNAK.LAB", "detail": "AdminTo"}], "commands": ["# confirm on a sample host (defender check):", "Get-LocalGroupMember -Group Administrators"], "references": ["https://learn.microsoft.com/windows-server/identity/laps/laps-overview"], "id": "0da2acf5b2c2", "ease": 0.9, "score": 68, "mitre": [{"id": "T1550.002", "name": "Use Alternate Authentication Material: Pass the Hash"}], "remediation": ["Deploy Windows LAPS so every machine has a unique, rotated local administrator password.", "Remove standing local-admin rights; use just-in-time elevation.", "Restrict or disable NTLM where possible and enable Credential Guard."], "detection": ["Event 4624 Logon Type 3 using NTLM from an unexpected source.", "One account authenticating to many hosts within minutes (lateral-movement fan-out)."]}, {"type": "GPO_ABUSE", "rule_id": "GPO_ABUSE.genericwrite", "title": "Writable GPO: GPO-EDITORS@KARNAK.LAB → DC SECURITY BASELINE@KARNAK.LAB", "affected": "GPO-EDITORS@KARNAK.LAB → DC SECURITY BASELINE@KARNAK.LAB", "severity": "HIGH", "description": "GPO-EDITORS@KARNAK.LAB can modify GPO 'DC SECURITY BASELINE@KARNAK.LAB'. Editing the GPO pushes attacker-controlled policy (scheduled task, immediate task, local-admin membership) to every linked computer or user.", "evidence": [{"source": "acl", "object": "GPO-EDITORS@KARNAK.LAB → DC SECURITY BASELINE@KARNAK.LAB", "detail": "genericwrite", "file": "karnak_gpos.json"}], "commands": ["# enumerate links, then abuse with pyGPOAbuse / SharpGPOAbuse", "pygpoabuse.py KARNAK.LAB/USER:PASS -gpo-id '<GUID>' -command 'whoami'"], "references": ["https://attack.mitre.org/techniques/T1484/001/"], "id": "8d7a82be38a2", "confidence": "HIGH", "confidence_reason": "write ACE on a Group Policy object", "ease": 0.85, "score": 64, "mitre": [{"id": "T1484.001", "name": "Domain or Tenant Policy Modification: Group Policy Modification"}], "remediation": ["Restrict GPO edit/owner rights to Tier-0 administrators.", "Review delegated permissions on every GPO linked to servers, DCs or admin workstations.", "Version-control and alert on GPO changes."], "detection": ["Event 5136 on groupPolicyContainer objects (gPCFileSysPath, versionNumber).", "Event 5145 / file auditing for writes under SYSVOL\\Policies (e.g. ScheduledTasks.xml)."]}, {"type": "GPO_ABUSE", "rule_id": "GPO_ABUSE.genericwrite", "title": "Writable GPO: IT-SUPPORT@KARNAK.LAB → WORKSTATION BASELINE@KARNAK.LAB", "affected": "IT-SUPPORT@KARNAK.LAB → WORKSTATION BASELINE@KARNAK.LAB", "severity": "HIGH", "description": "IT-SUPPORT@KARNAK.LAB can modify GPO 'WORKSTATION BASELINE@KARNAK.LAB'. Editing the GPO pushes attacker-controlled policy (scheduled task, immediate task, local-admin membership) to every linked computer or user.", "evidence": [{"source": "acl", "object": "IT-SUPPORT@KARNAK.LAB → WORKSTATION BASELINE@KARNAK.LAB", "detail": "genericwrite", "file": "karnak_gpos.json"}], "commands": ["# enumerate links, then abuse with pyGPOAbuse / SharpGPOAbuse", "pygpoabuse.py KARNAK.LAB/USER:PASS -gpo-id '<GUID>' -command 'whoami'"], "references": ["https://attack.mitre.org/techniques/T1484/001/"], "id": "95d4eb53cd76", "confidence": "HIGH", "confidence_reason": "write ACE on a Group Policy object", "ease": 0.85, "score": 64, "mitre": [{"id": "T1484.001", "name": "Domain or Tenant Policy Modification: Group Policy Modification"}], "remediation": ["Restrict GPO edit/owner rights to Tier-0 administrators.", "Review delegated permissions on every GPO linked to servers, DCs or admin workstations.", "Version-control and alert on GPO changes."], "detection": ["Event 5136 on groupPolicyContainer objects (gPCFileSysPath, versionNumber).", "Event 5145 / file auditing for writes under SYSVOL\\Policies (e.g. ScheduledTasks.xml)."]}, {"type": "PRIVILEGED_SESSION", "title": "Privileged session: ADM-RAMSES@KARNAK.LAB on WS-0142.KARNAK.LAB", "affected": "ADM-RAMSES@KARNAK.LAB@WS-0142.KARNAK.LAB", "severity": "HIGH", "description": "Tier-0 principal ADM-RAMSES@KARNAK.LAB has a session on WS-0142.KARNAK.LAB. Local admin on WS-0142.KARNAK.LAB means that credential can be dumped from memory and reused. Non-Tier-0 principals with local admin there: IT-SUPPORT@KARNAK.LAB.", "evidence": [{"source": "bloodhound", "object": "ADM-RAMSES@KARNAK.LAB@WS-0142.KARNAK.LAB", "detail": "HasSession"}, {"source": "bloodhound", "object": "IT-SUPPORT@KARNAK.LAB → WS-0142.KARNAK.LAB", "detail": "AdminTo"}], "commands": ["# with local admin on WS-0142.KARNAK.LAB, dump LSASS and extract ADM-RAMSES@KARNAK.LAB's secret", "nxc smb WS-0142.KARNAK.LAB -u USER -p PASS --lsa"], "references": ["https://attack.mitre.org/techniques/T1003/001/"], "id": "6a81974f1a21", "confidence": "MEDIUM", "confidence_reason": "session data is point-in-time and may be stale", "rule_id": "PRIVILEGED_SESSION", "ease": 0.8, "score": 60, "mitre": [{"id": "T1003.001", "name": "OS Credential Dumping: LSASS Memory"}, {"id": "T1078.002", "name": "Valid Accounts: Domain Accounts"}], "remediation": ["Enforce a tiered admin model: Tier-0 accounts only log on to Tier-0 systems (use Privileged Access Workstations).", "Add administrators to Protected Users and enable LSA protection (RunAsPPL) and Credential Guard.", "Log off stale admin sessions on member servers and workstations."], "detection": ["Event 4624 logons by Tier-0 accounts on non-Tier-0 hosts.", "Process access to lsass.exe (Sysmon Event 10) on hosts where admins are logged on."]}, {"type": "KERBEROASTING", "title": "Kerberoastable account: SVC-SQL@KARNAK.LAB", "affected": "SVC-SQL@KARNAK.LAB", "severity": "HIGH", "description": "Service account exposes an SPN, so any authenticated user can request a TGS and crack it offline. Prioritise if the cleartext grants onward access. SPNs: MSSQLSvc/srv-sql01.karnak.lab:1433", "evidence": [{"source": "bloodhound", "object": "SVC-SQL@KARNAK.LAB", "detail": "hasSPN=true"}, {"source": "bloodhound", "object": "SVC-SQL@KARNAK.LAB", "detail": "SPN: MSSQLSvc/srv-sql01.karnak.lab:1433"}], "commands": ["impacket-GetUserSPNs KARNAK.LAB/USER:PASS -dc-ip 10.20.0.10 -request -outputfile kerb.hash", "hashcat -m 13100 kerb.hash wordlist.txt -r rules/best64.rule"], "references": ["https://attack.mitre.org/techniques/T1558/003/"], "id": "aa769c84e068", "confidence": "HIGH", "confidence_reason": "hasSPN read directly from the directory", "rule_id": "KERBEROASTING", "ease": 0.7, "score": 52, "mitre": [{"id": "T1558.003", "name": "Steal or Forge Kerberos Tickets: Kerberoasting"}], "remediation": ["Move services to group Managed Service Accounts (gMSA) so passwords are 120+ random characters and rotate automatically.", "Give any remaining service accounts a random password of 25+ characters.", "Enforce AES-only Kerberos encryption (msDS-SupportedEncryptionTypes) and disable RC4 so tickets are far harder to crack.", "Remove service accounts from privileged groups; never put an SPN on a Tier-0 account."], "detection": ["Event 4769 (Kerberos service ticket requested) with Ticket Encryption Type 0x17 (RC4) for a service account.", "A single account requesting TGS tickets for many SPNs in a short window.", "Deploy a honeypot account with an SPN and alert on any 4769 for it."]}], "paths": [{"hops": 2, "start": "K.EID@KARNAK.LAB", "goal": "KARNAK.LAB", "inferred_steps": 0, "validated_steps": 0, "rationale": "2 hop(s), all steps are observed relationships. Shorter, fully-observed paths rank higher.", "conditional": false, "assumptions": [], "label": "K.EID@KARNAK.LAB → KARNAK.LAB", "steps": [{"id": "MemberOf:K.EID->DOMAIN USERS", "from": "K.EID@KARNAK.LAB", "to": "DOMAIN USERS@KARNAK.LAB", "type": "MemberOf", "detail": "every domain user is a member", "trust": "observed", "kind": "implicit", "evidence": [], "fix": "Remove K.EID from DOMAIN USERS."}, {"id": "ADCS:ESC1/KarnakUser:DOMAIN USERS->KARNAK.LAB", "from": "DOMAIN USERS@KARNAK.LAB", "to": "KARNAK.LAB", "type": "ADCS", "detail": "ESC1 KarnakUser: enroll with a subject of their choice and authenticate as any user", "trust": "observed", "kind": "control", "evidence": [], "fix": "Remove the enrollment right DOMAIN USERS holds on template KarnakUser, or turn off 'Supply in the request' / require manager approval on it."}], "commands": ["# every domain user holds DOMAIN USERS@KARNAK.LAB's rights", "certipy req -u USER@KARNAK.LAB -p PASS -ca KARNAK-CA -template KarnakUser -upn administrator@KARNAK.LAB\ncertipy auth -pfx administrator.pfx -dc-ip 10.20.0.10"]}, {"hops": 3, "start": "K.EID@KARNAK.LAB", "goal": "KARNAK.LAB", "inferred_steps": 0, "validated_steps": 0, "rationale": "3 hop(s), all steps are observed relationships. Shorter, fully-observed paths rank higher.", "conditional": false, "assumptions": [], "label": "K.EID@KARNAK.LAB → KARNAK.LAB", "steps": [{"id": "MemberOf:K.EID->HELPDESK", "from": "K.EID@KARNAK.LAB", "to": "HELPDESK@KARNAK.LAB", "type": "MemberOf", "detail": "member of group", "trust": "observed", "kind": "control", "evidence": [], "fix": "Remove K.EID from HELPDESK."}, {"id": "ForceChangePassword:HELPDESK->SVC-BACKUP", "from": "HELPDESK@KARNAK.LAB", "to": "SVC-BACKUP@KARNAK.LAB", "type": "ForceChangePassword", "detail": "reset password", "trust": "observed", "kind": "control", "evidence": [], "fix": "Remove the password-reset right HELPDESK holds on SVC-BACKUP."}, {"id": "DCSync:SVC-BACKUP->KARNAK.LAB", "from": "SVC-BACKUP@KARNAK.LAB", "to": "KARNAK.LAB", "type": "DCSync", "detail": "replicate domain secrets", "trust": "observed", "kind": "control", "evidence": [], "fix": "Remove replication rights (Get-Changes / Get-Changes-All) from SVC-BACKUP."}], "commands": ["# already inherit HELPDESK@KARNAK.LAB's rights via group membership", "net rpc password \"SVC-BACKUP\" -U KARNAK.LAB/USER%PASS -S 10.20.0.10", "impacket-secretsdump KARNAK.LAB/USER@10.20.0.10 -just-dc"]}], "graph": {"nodes": [{"id": "K.EID@KARNAK.LAB", "label": "K.EID", "depth": 0, "otype": "user", "paths": [0, 1], "kind": "start"}, {"id": "DOMAIN USERS@KARNAK.LAB", "label": "DOMAIN USERS", "depth": 1, "otype": "group", "paths": [0], "kind": "mid"}, {"id": "KARNAK.LAB", "label": "KARNAK.LAB", "depth": 2, "otype": "domain", "paths": [0, 1], "kind": "goal"}, {"id": "HELPDESK@KARNAK.LAB", "label": "HELPDESK", "depth": 1, "otype": "group", "paths": [1], "kind": "mid"}, {"id": "SVC-BACKUP@KARNAK.LAB", "label": "SVC-BACKUP", "depth": 2, "otype": "user", "paths": [1], "kind": "mid"}], "edges": [{"id": 0, "from": "K.EID@KARNAK.LAB", "to": "DOMAIN USERS@KARNAK.LAB", "type": "MemberOf", "detail": "every domain user is a member", "trust": "observed", "kind": "implicit", "command": "# every domain user holds DOMAIN USERS@KARNAK.LAB's rights", "fix": "Remove K.EID from DOMAIN USERS.", "choke": false, "alt": null, "kept": false, "paths": [0], "xi": null}, {"id": 1, "from": "DOMAIN USERS@KARNAK.LAB", "to": "KARNAK.LAB", "type": "ADCS", "detail": "ESC1 KarnakUser: enroll with a subject of their choice and authenticate as any user", "trust": "observed", "kind": "control", "command": "certipy req -u USER@KARNAK.LAB -p PASS -ca KARNAK-CA -template KarnakUser -upn administrator@KARNAK.LAB\ncertipy auth -pfx administrator.pfx -dc-ip 10.20.0.10", "fix": "Remove the enrollment right DOMAIN USERS holds on template KarnakUser, or turn off 'Supply in the request' / require manager approval on it.", "choke": false, "alt": true, "kept": false, "paths": [0], "xi": 206}, {"id": 2, "from": "K.EID@KARNAK.LAB", "to": "HELPDESK@KARNAK.LAB", "type": "MemberOf", "detail": "member of group", "trust": "observed", "kind": "control", "command": "# already inherit HELPDESK@KARNAK.LAB's rights via group membership", "fix": "Remove K.EID from HELPDESK.", "choke": false, "alt": true, "kept": false, "paths": [1], "xi": 256}, {"id": 3, "from": "HELPDESK@KARNAK.LAB", "to": "SVC-BACKUP@KARNAK.LAB", "type": "ForceChangePassword", "detail": "reset password", "trust": "observed", "kind": "control", "command": "net rpc password \"SVC-BACKUP\" -U KARNAK.LAB/USER%PASS -S 10.20.0.10", "fix": "Remove the password-reset right HELPDESK holds on SVC-BACKUP.", "choke": false, "alt": true, "kept": false, "paths": [1], "xi": 240}, {"id": 4, "from": "SVC-BACKUP@KARNAK.LAB", "to": "KARNAK.LAB", "type": "DCSync", "detail": "replicate domain secrets", "trust": "observed", "kind": "control", "command": "impacket-secretsdump KARNAK.LAB/USER@10.20.0.10 -just-dc", "fix": "Remove replication rights (Get-Changes / Get-Changes-All) from SVC-BACKUP.", "choke": false, "alt": true, "kept": false, "paths": [1], "xi": 315}]}, "exposure": {"computed": true, "users_total": 1211, "users_exposed": 1211, "percent": 100.0, "via_broad_groups": ["DOMAIN USERS@KARNAK.LAB"], "plan": {"changes": [{"from": "DOMAIN USERS@KARNAK.LAB", "to": "KARNAK.LAB", "type": "ADCS", "detail": "ESC1 KarnakUser: enroll with a subject of their choice and authenticate as any user", "trust": "observed", "fix": "Remove the enrollment right DOMAIN USERS holds on template KarnakUser, or turn off 'Supply in the request' / require manager approval on it.", "kind": "permission", "affects": ["DOMAIN USERS@KARNAK.LAB"], "loses": ["enroll in KarnakUser (ESC1)"], "effect": "Every domain user loses only this right (DOMAIN USERS): enroll in KarnakUser (ESC1).", "note": "", "users_cut_off": 1046, "users_after": 165, "id": "ADCS:ESC1/KarnakUser:DOMAIN USERS->KARNAK.LAB", "xi": 206}, {"from": "WS-0142.KARNAK.LAB", "to": "ADM-RAMSES@KARNAK.LAB", "type": "HasSession", "detail": "credentials in memory", "trust": "observed", "fix": "Keep ADM-RAMSES off WS-0142.KARNAK.LAB: Tier-0 accounts should only sign in to Tier-0 systems.", "kind": "sign-in", "affects": ["ADM-RAMSES@KARNAK.LAB"], "loses": [], "effect": "No permission is removed: ADM-RAMSES stops signing in to WS-0142.KARNAK.LAB.", "note": "Enforce it with a deny-logon policy or an authentication policy silo.", "users_cut_off": 116, "users_after": 49, "id": "HasSession:WS-0142.KARNAK.LAB->ADM-RAMSES", "xi": 334}, {"from": "SVC-BACKUP@KARNAK.LAB", "to": "KARNAK.LAB", "type": "DCSync", "detail": "replicate domain secrets", "trust": "observed", "fix": "Remove replication rights (Get-Changes / Get-Changes-All) from SVC-BACKUP.", "kind": "permission", "affects": ["SVC-BACKUP@KARNAK.LAB"], "loses": ["replicate domain secrets (DCSync)"], "effect": "SVC-BACKUP loses only this right: replicate domain secrets (DCSync).", "note": "", "users_cut_off": 41, "users_after": 8, "id": "DCSync:SVC-BACKUP->KARNAK.LAB", "xi": 315}, {"from": "GPO-EDITORS@KARNAK.LAB", "to": "DC SECURITY BASELINE@KARNAK.LAB", "type": "ACL", "detail": "genericwrite → object takeover", "trust": "observed", "fix": "Remove the GenericWrite permission GPO-EDITORS holds on DC SECURITY BASELINE.", "kind": "permission", "affects": ["E.ISMAIL2@KARNAK.LAB", "H.YOUSSEF@KARNAK.LAB", "I.SALEM3@KARNAK.LAB", "L.KHALIL@KARNAK.LAB", "N.SALAH@KARNAK.LAB", "S.TAWFIK@KARNAK.LAB", "T.MAHER@KARNAK.LAB", "W.HEGAZY2@KARNAK.LAB"], "loses": ["GenericWrite over DC SECURITY BASELINE"], "effect": "GPO-EDITORS's 8 members (E.ISMAIL2, H.YOUSSEF, I.SALEM3, L.KHALIL +4 more) lose only this right: GenericWrite over DC SECURITY BASELINE.", "note": "", "users_cut_off": 8, "users_after": 0, "id": "ACL:genericwrite:GPO-EDITORS->DC SECURITY BASELINE", "xi": 233}], "users_after": 0, "memberships_removed": 0, "breaks_every_route": true}, "plan_note": "", "top_fixes": [{"from": "DOMAIN USERS@KARNAK.LAB", "to": "KARNAK.LAB", "type": "ADCS", "detail": "ESC1 KarnakUser: enroll with a subject of their choice and authenticate as any user", "trust": "observed", "fix": "Remove the enrollment right DOMAIN USERS holds on template KarnakUser, or turn off 'Supply in the request' / require manager approval on it.", "kind": "permission", "affects": ["DOMAIN USERS@KARNAK.LAB"], "loses": ["enroll in KarnakUser (ESC1)"], "effect": "Every domain user loses only this right (DOMAIN USERS): enroll in KarnakUser (ESC1).", "note": "", "users_cut_off": 1046, "users_after": 165, "id": "ADCS:ESC1/KarnakUser:DOMAIN USERS->KARNAK.LAB", "xi": 206}], "targets": ["Tier-0"], "modeled": ["group membership", "ACL takeover (GenericAll, GenericWrite, WriteDacl, WriteOwner, Owns, AllExtendedRights, AddKeyCredentialLink, WriteSPN)", "password reset", "add member", "local admin", "sessions", "DCSync", "unconstrained, constrained and resource-based delegation", "SID history", "LAPS and gMSA password readers", "GPOs applied through OU links", "ADCS ESC1, ESC2, ESC3, ESC4, ESC6, ESC7, ESC8, ESC11, ESC15 (Certipy)"], "not_modeled": ["Kerberoastable and AS-REP roastable accounts (they need a crackable password)", "ADCS ESC5, ESC9, ESC10, ESC12, ESC13, ESC14, ESC16", "domain and forest trusts", "GPO security filtering and WMI filters", "credentials outside Active Directory (scripts, shares, vaults)", "sessions not seen at collection time"]}, "xg": {"nodes": ["A.HEGAZY3@KARNAK.LAB", "A.HOSNY2@KARNAK.LAB", "A.OSMAN@KARNAK.LAB", "A.RAMADAN@KARNAK.LAB", "A.SALAH2@KARNAK.LAB", "A.SHAWKY2@KARNAK.LAB", "A.ZAKARIA2@KARNAK.LAB", "ADM-NEFERTARI@KARNAK.LAB", "ADM-RAMSES@KARNAK.LAB", "ADMINISTRATOR@KARNAK.LAB", "B.AHMED@KARNAK.LAB", "B.BAKR@KARNAK.LAB", "B.ISMAIL@KARNAK.LAB", "B.KHALIL@KARNAK.LAB", "B.SABRY@KARNAK.LAB", "B.SALAH@KARNAK.LAB", "B.SALEM@KARNAK.LAB", "C.ADEL2@KARNAK.LAB", "C.AHMED2@KARNAK.LAB", "C.AMIN@KARNAK.LAB", "C.FAWZY2@KARNAK.LAB", "C.HAMDY@KARNAK.LAB", "C.HAMDY2@KARNAK.LAB", "C.HASSAN@KARNAK.LAB", "C.MAHMOUD@KARNAK.LAB", "C.RAGAB3@KARNAK.LAB", "C.SHAWKY@KARNAK.LAB", "C.WAHBA@KARNAK.LAB", "D.ADEL2@KARNAK.LAB", "D.HEGAZY2@KARNAK.LAB", "D.HELMY@KARNAK.LAB", "D.IBRAHIM2@KARNAK.LAB", "D.NASSER@KARNAK.LAB", "D.SALEM3@KARNAK.LAB", "D.WAHBA@KARNAK.LAB", "D.ZAKARIA2@KARNAK.LAB", "DC SECURITY BASELINE@KARNAK.LAB", "DC01.KARNAK.LAB", "DEFAULT DOMAIN CONTROLLERS POLICY@KARNAK.LAB", "DEFAULT DOMAIN POLICY@KARNAK.LAB", "DOMAIN ADMINS@KARNAK.LAB", "DOMAIN CONTROLLERS@KARNAK.LAB", "DOMAIN USERS@KARNAK.LAB", "E.AMIN2@KARNAK.LAB", "E.FAHMY@KARNAK.LAB", "E.FAHMY2@KARNAK.LAB", "E.ISMAIL@KARNAK.LAB", "E.ISMAIL2@KARNAK.LAB", "E.SHAWKY@KARNAK.LAB", "E.SHERIF@KARNAK.LAB", "E.TAWFIK3@KARNAK.LAB", "E.YOUSSEF3@KARNAK.LAB", "E.ZAKARIA@KARNAK.LAB", "F.AHMED@KARNAK.LAB", "F.HELMY2@KARNAK.LAB", "F.IBRAHIM@KARNAK.LAB", "F.KAMAL3@KARNAK.LAB", "F.KHALIL@KARNAK.LAB", "F.MAHER@KARNAK.LAB", "F.NAGUIB@KARNAK.LAB", "F.NASSER2@KARNAK.LAB", "F.NASSER3@KARNAK.LAB", "F.RAGAB@KARNAK.LAB", "G.HAMDY@KARNAK.LAB", "G.ISMAIL2@KARNAK.LAB", "G.LOTFY@KARNAK.LAB", "G.MAHER@KARNAK.LAB", "G.OSMAN@KARNAK.LAB", "G.OSMAN2@KARNAK.LAB", "GPO-EDITORS@KARNAK.LAB", "H.AHMED3@KARNAK.LAB", "H.GAMAL@KARNAK.LAB", "H.HELMY@KARNAK.LAB", "H.NABIL@KARNAK.LAB", "H.YOUSSEF@KARNAK.LAB", "H.ZAKARIA3@KARNAK.LAB", "HELPDESK@KARNAK.LAB", "I.FARID@KARNAK.LAB", "I.FAWZY@KARNAK.LAB", "I.HAMDY@KARNAK.LAB", "I.HEGAZY@KARNAK.LAB", "I.HELMY2@KARNAK.LAB", "I.NAGUIB2@KARNAK.LAB", "I.RASHAD2@KARNAK.LAB", "I.SALEM3@KARNAK.LAB", "I.SHAWKY@KARNAK.LAB", "I.SHAWKY2@KARNAK.LAB", "I.TAWFIK2@KARNAK.LAB", "I.ZAKI@KARNAK.LAB", "IT-SUPPORT@KARNAK.LAB", "K.DIAB@KARNAK.LAB", "K.EID@KARNAK.LAB", "K.FAHMY@KARNAK.LAB", "K.FARID@KARNAK.LAB", "K.GAMAL2@KARNAK.LAB", "K.GAMAL4@KARNAK.LAB", "K.HAMDY2@KARNAK.LAB", "K.MAHMOUD2@KARNAK.LAB", "K.RAGAB@KARNAK.LAB", "KARNAK.LAB", "L.ASHRAF2@KARNAK.LAB", "L.DIAB3@KARNAK.LAB", "L.FAWZY4@KARNAK.LAB", "L.KHALIL@KARNAK.LAB", "L.NABIL@KARNAK.LAB", "L.RASHAD@KARNAK.LAB", "M.ADEL@KARNAK.LAB", "M.DIAB@KARNAK.LAB", "M.FAWZY2@KARNAK.LAB", "M.HAFEZ@KARNAK.LAB", "M.HEGAZY2@KARNAK.LAB", "M.MAHMOUD@KARNAK.LAB", "M.MOSTAFA@KARNAK.LAB", "M.MOSTAFA2@KARNAK.LAB", "M.RASHAD@KARNAK.LAB", "M.SALAH@KARNAK.LAB", "M.SALEM@KARNAK.LAB", "N.EID2@KARNAK.LAB", "N.FARID2@KARNAK.LAB", "N.MORSY2@KARNAK.LAB", "N.MOSTAFA@KARNAK.LAB", "N.RAGAB3@KARNAK.LAB", "N.RAGAB5@KARNAK.LAB", "N.SALAH@KARNAK.LAB", "O.AMIN3@KARNAK.LAB", "O.HAMDY@KARNAK.LAB", "O.HAMDY2@KARNAK.LAB", "O.MAHER2@KARNAK.LAB", "O.MORSY@KARNAK.LAB", "O.MORSY2@KARNAK.LAB", "O.NABIL@KARNAK.LAB", "O.RASHAD@KARNAK.LAB", "O.TAWFIK@KARNAK.LAB", "R.AHMED@KARNAK.LAB", "R.DIAB@KARNAK.LAB", "R.SALAH@KARNAK.LAB", "R.SALEM@KARNAK.LAB", "R.TAHA@KARNAK.LAB", "R.TAWFIK@KARNAK.LAB", "S.AMIN@KARNAK.LAB", "S.HAFEZ@KARNAK.LAB", "S.HAMDY@KARNAK.LAB", "S.HEGAZY@KARNAK.LAB", "S.HEGAZY2@KARNAK.LAB", "S.HEGAZY4@KARNAK.LAB", "S.MOSTAFA2@KARNAK.LAB", "S.RAGAB@KARNAK.LAB", "S.SABRY2@KARNAK.LAB", "S.SAMIR2@KARNAK.LAB", "S.SHAWKY@KARNAK.LAB", "S.TAWFIK@KARNAK.LAB", "SVC-BACKUP@KARNAK.LAB", "T.DIAB@KARNAK.LAB", "T.EID@KARNAK.LAB", "T.MAHER@KARNAK.LAB", "T.MORSY@KARNAK.LAB", "T.NASSER@KARNAK.LAB", "T.SALEM@KARNAK.LAB", "T.SAMIR@KARNAK.LAB", "T.SHERIF@KARNAK.LAB", "T.SOLIMAN@KARNAK.LAB", "T.SOLIMAN3@KARNAK.LAB", "T.TAHA@KARNAK.LAB", "W.ALI2@KARNAK.LAB", "W.AMIN@KARNAK.LAB", "W.GAMAL2@KARNAK.LAB", "W.HEGAZY2@KARNAK.LAB", "W.HOSNY@KARNAK.LAB", "W.MANSOUR@KARNAK.LAB", "WORKSTATION BASELINE@KARNAK.LAB", "WS-0142.KARNAK.LAB", "Y.AMIN@KARNAK.LAB", "Y.GAMAL@KARNAK.LAB", "Y.NAGUIB@KARNAK.LAB", "Y.RAMADAN@KARNAK.LAB", "Y.SAMIR@KARNAK.LAB", "Y.SHERIF2@KARNAK.LAB", "Z.FAHMY4@KARNAK.LAB", "Z.ISMAIL2@KARNAK.LAB", "Z.ISMAIL3@KARNAK.LAB", "Z.MOSTAFA@KARNAK.LAB", "Z.OSMAN@KARNAK.LAB", "Z.RASHAD@KARNAK.LAB", "Z.SAYED@KARNAK.LAB", "Z.SHAWKY2@KARNAK.LAB"], "goals": [7, 8, 9, 37, 40, 41, 99], "broad": [42], "pop": [0, 1, 2, 3, 4, 5, 6, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 33, 34, 35, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 70, 71, 72, 73, 74, 75, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 90, 91, 92, 93, 94, 95, 96, 97, 98, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 171, 172, 173, 174, 175, 177, 178, 179, 181, 182, 183, 184], "total": 1211, "edges": [[0, 89, 1], [1, 89, 1], [2, 76, 1], [3, 76, 1], [4, 89, 1], [5, 76, 1], [6, 89, 1], [10, 89, 1], [11, 89, 1], [12, 89, 1], [13, 89, 1], [14, 89, 1], [15, 89, 1], [16, 76, 1], [17, 89, 1], [18, 89, 1], [19, 76, 1], [20, 89, 1], [21, 76, 1], [22, 89, 1], [23, 89, 1], [24, 89, 1], [25, 89, 1], [26, 89, 1], [27, 76, 1], [28, 89, 1], [29, 76, 1], [30, 89, 1], [31, 89, 1], [32, 89, 1], [33, 76, 1], [34, 89, 1], [35, 89, 1], [36, 37, 0], [38, 37, 0], [39, 62, 0], [39, 116, 0], [39, 57, 0], [39, 142, 0], [39, 34, 0], [39, 141, 0], [39, 168, 0], [39, 154, 0], [39, 140, 0], [39, 107, 0], [39, 44, 0], [39, 88, 0], [39, 98, 0], [39, 48, 0], [39, 128, 0], [39, 81, 0], [39, 54, 0], [39, 65, 0], [39, 114, 0], [39, 125, 0], [39, 130, 0], [39, 26, 0], [39, 13, 0], [39, 74, 0], [39, 14, 0], [39, 117, 0], [39, 181, 0], [39, 4, 0], [39, 182, 0], [39, 146, 0], [39, 139, 0], [39, 143, 0], [39, 28, 0], [39, 123, 0], [39, 78, 0], [39, 158, 0], [39, 53, 0], [39, 75, 0], [39, 109, 0], [39, 148, 0], [39, 115, 0], [39, 132, 0], [39, 85, 0], [39, 49, 0], [39, 138, 0], [39, 156, 0], [39, 180, 0], [39, 63, 0], [39, 134, 0], [39, 150, 0], [39, 12, 0], [39, 58, 0], [39, 162, 0], [39, 100, 0], [39, 82, 0], [39, 160, 0], [39, 29, 0], [39, 32, 0], [39, 94, 0], [39, 60, 0], [39, 104, 0], [39, 19, 0], [39, 127, 0], [39, 1, 0], [39, 15, 0], [39, 87, 0], [39, 118, 0], [39, 80, 0], [39, 64, 0], [39, 161, 0], [39, 35, 0], [39, 91, 0], [39, 172, 0], [39, 3, 0], [39, 133, 0], [39, 105, 0], [39, 166, 0], [39, 144, 0], [39, 152, 0], [39, 173, 0], [39, 18, 0], [39, 16, 0], [39, 124, 0], [39, 93, 0], [39, 21, 0], [39, 164, 0], [39, 33, 0], [39, 131, 0], [39, 55, 0], [39, 27, 0], [39, 20, 0], [39, 176, 0], [39, 120, 0], [39, 184, 0], [39, 2, 0], [39, 174, 0], [39, 73, 0], [39, 165, 0], [39, 86, 0], [39, 145, 0], [39, 178, 0], [39, 135, 0], [39, 106, 0], [39, 24, 0], [39, 11, 0], [39, 111, 0], [39, 52, 0], [39, 30, 0], [39, 72, 0], [39, 96, 0], [39, 46, 0], [39, 171, 0], [39, 10, 0], [39, 119, 0], [39, 84, 0], [39, 5, 0], [39, 67, 0], [39, 90, 0], [39, 110, 0], [39, 121, 0], [39, 155, 0], [39, 71, 0], [39, 103, 0], [39, 95, 0], [39, 159, 0], [39, 17, 0], [39, 126, 0], [39, 101, 0], [39, 23, 0], [39, 0, 0], [39, 153, 0], [39, 6, 0], [39, 45, 0], [39, 66, 0], [39, 22, 0], [39, 92, 0], [39, 31, 0], [39, 179, 0], [39, 68, 0], [39, 70, 0], [39, 129, 0], [39, 77, 0], [39, 108, 0], [39, 112, 0], [39, 47, 0], [39, 61, 0], [39, 50, 0], [39, 25, 0], [39, 113, 0], [39, 102, 0], [39, 149, 0], [39, 122, 0], [39, 147, 0], [39, 97, 0], [39, 51, 0], [39, 163, 0], [39, 157, 0], [39, 137, 0], [39, 43, 0], [39, 175, 0], [39, 79, 0], [39, 83, 0], [39, 136, 0], [39, 167, 0], [39, 177, 0], [39, 59, 0], [39, 183, 0], [39, 56, 0], [39, 151, 0], [39, 170, 0], [39, 37, 0], [42, 99, 1], [43, 76, 1], [44, 89, 1], [45, 76, 1], [46, 89, 1], [47, 69, 1], [48, 89, 1], [49, 89, 1], [50, 76, 1], [51, 76, 1], [52, 89, 1], [53, 89, 1], [54, 89, 1], [55, 76, 1], [56, 89, 1], [57, 89, 1], [58, 89, 1], [59, 76, 1], [60, 89, 1], [61, 89, 1], [62, 76, 1], [63, 89, 1], [64, 89, 1], [65, 89, 1], [66, 89, 1], [67, 76, 1], [68, 76, 1], [69, 36, 1], [70, 89, 1], [71, 89, 1], [72, 76, 1], [73, 89, 1], [74, 69, 1], [75, 89, 1], [76, 151, 1], [77, 89, 1], [78, 89, 1], [79, 89, 1], [80, 89, 1], [81, 76, 1], [82, 76, 1], [83, 89, 1], [84, 69, 1], [85, 89, 1], [86, 76, 1], [87, 89, 1], [88, 76, 1], [89, 169, 1], [89, 170, 1], [90, 89, 1], [91, 76, 1], [92, 76, 1], [93, 89, 1], [94, 89, 1], [95, 89, 1], [96, 89, 1], [97, 76, 1], [98, 89, 1], [100, 89, 1], [101, 89, 1], [102, 76, 1], [103, 69, 1], [104, 76, 1], [105, 89, 1], [106, 89, 1], [107, 89, 1], [108, 89, 1], [109, 89, 1], [110, 76, 1], [111, 89, 1], [112, 89, 1], [113, 89, 1], [114, 89, 1], [115, 89, 1], [116, 89, 1], [117, 89, 1], [118, 89, 1], [119, 89, 1], [120, 89, 1], [121, 76, 1], [122, 89, 1], [123, 69, 1], [124, 89, 1], [125, 89, 1], [126, 76, 1], [127, 89, 1], [128, 89, 1], [129, 89, 1], [130, 76, 1], [131, 89, 1], [132, 89, 1], [133, 89, 1], [134, 89, 1], [135, 89, 1], [136, 76, 1], [137, 89, 1], [138, 89, 1], [139, 89, 1], [140, 76, 1], [141, 89, 1], [142, 89, 1], [143, 89, 1], [144, 89, 1], [145, 89, 1], [146, 76, 1], [147, 89, 1], [148, 89, 1], [149, 89, 1], [150, 69, 1], [151, 99, 1], [152, 89, 1], [153, 76, 1], [154, 69, 1], [155, 76, 1], [156, 89, 1], [157, 89, 1], [158, 89, 1], [159, 89, 1], [160, 76, 1], [161, 76, 1], [162, 89, 1], [163, 89, 1], [164, 89, 1], [165, 89, 1], [166, 69, 1], [167, 89, 1], [168, 89, 1], [169, 170, 0], [170, 8, 1], [171, 76, 1], [172, 89, 1], [173, 89, 1], [174, 89, 1], [175, 89, 1], [176, 89, 1], [177, 89, 1], [178, 89, 1], [179, 89, 1], [180, 89, 1], [181, 89, 1], [182, 89, 1], [183, 89, 1], [184, 89, 1]]}, "plans": [{"id": "fewest-changes", "title": "Fewest changes", "summary": "The smallest set of changes that breaks every route.", "changes": [{"from": "K.EID@KARNAK.LAB", "to": "HELPDESK@KARNAK.LAB", "type": "MemberOf", "detail": "member of group", "trust": "observed", "fix": "Remove K.EID from HELPDESK.", "kind": "membership", "affects": ["K.EID@KARNAK.LAB"], "loses": ["reset SVC-BACKUP's password"], "effect": "K.EID loses everything HELPDESK grants: reset SVC-BACKUP's password.", "note": "Anything HELPDESK grants outside Active Directory (file shares, apps) isn't in the data and would be lost too."}, {"from": "DOMAIN USERS@KARNAK.LAB", "to": "KARNAK.LAB", "type": "ADCS", "detail": "ESC1 KarnakUser: enroll with a subject of their choice and authenticate as any user", "trust": "observed", "fix": "Remove the enrollment right DOMAIN USERS holds on template KarnakUser, or turn off 'Supply in the request' / require manager approval on it.", "kind": "permission", "affects": ["DOMAIN USERS@KARNAK.LAB"], "loses": ["enroll in KarnakUser (ESC1)"], "effect": "Every domain user loses only this right (DOMAIN USERS): enroll in KarnakUser (ESC1).", "note": ""}], "memberships_removed": 1, "affected": ["DOMAIN USERS@KARNAK.LAB", "K.EID@KARNAK.LAB"], "breaks_every_route": true}, {"id": "keep-memberships", "title": "Keep group memberships", "summary": "Narrow what the groups are allowed to do instead of removing anyone from them.", "changes": [{"from": "DOMAIN USERS@KARNAK.LAB", "to": "KARNAK.LAB", "type": "ADCS", "detail": "ESC1 KarnakUser: enroll with a subject of their choice and authenticate as any user", "trust": "observed", "fix": "Remove the enrollment right DOMAIN USERS holds on template KarnakUser, or turn off 'Supply in the request' / require manager approval on it.", "kind": "permission", "affects": ["DOMAIN USERS@KARNAK.LAB"], "loses": ["enroll in KarnakUser (ESC1)"], "effect": "Every domain user loses only this right (DOMAIN USERS): enroll in KarnakUser (ESC1).", "note": ""}, {"from": "HELPDESK@KARNAK.LAB", "to": "SVC-BACKUP@KARNAK.LAB", "type": "ForceChangePassword", "detail": "reset password", "trust": "observed", "fix": "Remove the password-reset right HELPDESK holds on SVC-BACKUP.", "kind": "permission", "affects": ["A.OSMAN@KARNAK.LAB", "A.RAMADAN@KARNAK.LAB", "A.SHAWKY2@KARNAK.LAB", "B.SALEM@KARNAK.LAB", "C.AMIN@KARNAK.LAB", "C.HAMDY@KARNAK.LAB", "C.WAHBA@KARNAK.LAB", "D.HEGAZY2@KARNAK.LAB", "D.SALEM3@KARNAK.LAB", "E.AMIN2@KARNAK.LAB", "E.FAHMY2@KARNAK.LAB", "E.TAWFIK3@KARNAK.LAB", "E.YOUSSEF3@KARNAK.LAB", "F.IBRAHIM@KARNAK.LAB", "F.NAGUIB@KARNAK.LAB", "F.RAGAB@KARNAK.LAB", "G.OSMAN@KARNAK.LAB", "G.OSMAN2@KARNAK.LAB", "H.HELMY@KARNAK.LAB", "I.HELMY2@KARNAK.LAB", "I.NAGUIB2@KARNAK.LAB", "I.SHAWKY2@KARNAK.LAB", "I.ZAKI@KARNAK.LAB", "K.EID@KARNAK.LAB", "K.FAHMY@KARNAK.LAB", "K.MAHMOUD2@KARNAK.LAB", "L.FAWZY4@KARNAK.LAB", "L.NABIL@KARNAK.LAB", "M.HEGAZY2@KARNAK.LAB", "N.RAGAB3@KARNAK.LAB", "O.HAMDY2@KARNAK.LAB", "O.NABIL@KARNAK.LAB", "R.SALEM@KARNAK.LAB", "S.HAFEZ@KARNAK.LAB", "S.RAGAB@KARNAK.LAB", "T.EID@KARNAK.LAB", "T.MORSY@KARNAK.LAB", "T.SOLIMAN@KARNAK.LAB", "T.SOLIMAN3@KARNAK.LAB", "Y.AMIN@KARNAK.LAB"], "loses": ["reset SVC-BACKUP's password"], "effect": "HELPDESK's 40 members (A.OSMAN, A.RAMADAN, A.SHAWKY2, B.SALEM +36 more) lose only this right: reset SVC-BACKUP's password.", "note": ""}], "memberships_removed": 0, "affected": ["A.OSMAN@KARNAK.LAB", "A.RAMADAN@KARNAK.LAB", "A.SHAWKY2@KARNAK.LAB", "B.SALEM@KARNAK.LAB", "C.AMIN@KARNAK.LAB", "C.HAMDY@KARNAK.LAB", "C.WAHBA@KARNAK.LAB", "D.HEGAZY2@KARNAK.LAB", "D.SALEM3@KARNAK.LAB", "DOMAIN USERS@KARNAK.LAB", "E.AMIN2@KARNAK.LAB", "E.FAHMY2@KARNAK.LAB", "E.TAWFIK3@KARNAK.LAB", "E.YOUSSEF3@KARNAK.LAB", "F.IBRAHIM@KARNAK.LAB", "F.NAGUIB@KARNAK.LAB", "F.RAGAB@KARNAK.LAB", "G.OSMAN2@KARNAK.LAB", "G.OSMAN@KARNAK.LAB", "H.HELMY@KARNAK.LAB", "I.HELMY2@KARNAK.LAB", "I.NAGUIB2@KARNAK.LAB", "I.SHAWKY2@KARNAK.LAB", "I.ZAKI@KARNAK.LAB", "K.EID@KARNAK.LAB", "K.FAHMY@KARNAK.LAB", "K.MAHMOUD2@KARNAK.LAB", "L.FAWZY4@KARNAK.LAB", "L.NABIL@KARNAK.LAB", "M.HEGAZY2@KARNAK.LAB", "N.RAGAB3@KARNAK.LAB", "O.HAMDY2@KARNAK.LAB", "O.NABIL@KARNAK.LAB", "R.SALEM@KARNAK.LAB", "S.HAFEZ@KARNAK.LAB", "S.RAGAB@KARNAK.LAB", "T.EID@KARNAK.LAB", "T.MORSY@KARNAK.LAB", "T.SOLIMAN3@KARNAK.LAB", "T.SOLIMAN@KARNAK.LAB", "Y.AMIN@KARNAK.LAB"], "breaks_every_route": true}, {"id": "nearest-targets", "title": "Fix nearest the targets", "summary": "Cut the steps closest to the targets, so the foothold and its groups keep as much of their access as possible.", "changes": [{"from": "DOMAIN USERS@KARNAK.LAB", "to": "KARNAK.LAB", "type": "ADCS", "detail": "ESC1 KarnakUser: enroll with a subject of their choice and authenticate as any user", "trust": "observed", "fix": "Remove the enrollment right DOMAIN USERS holds on template KarnakUser, or turn off 'Supply in the request' / require manager approval on it.", "kind": "permission", "affects": ["DOMAIN USERS@KARNAK.LAB"], "loses": ["enroll in KarnakUser (ESC1)"], "effect": "Every domain user loses only this right (DOMAIN USERS): enroll in KarnakUser (ESC1).", "note": ""}, {"from": "SVC-BACKUP@KARNAK.LAB", "to": "KARNAK.LAB", "type": "DCSync", "detail": "replicate domain secrets", "trust": "observed", "fix": "Remove replication rights (Get-Changes / Get-Changes-All) from SVC-BACKUP.", "kind": "permission", "affects": ["SVC-BACKUP@KARNAK.LAB"], "loses": ["replicate domain secrets (DCSync)"], "effect": "SVC-BACKUP loses only this right: replicate domain secrets (DCSync).", "note": ""}], "memberships_removed": 0, "affected": ["DOMAIN USERS@KARNAK.LAB", "SVC-BACKUP@KARNAK.LAB"], "breaks_every_route": true}], "keep": [], "default_view": "overview"}</script>
+<script>
+"use strict";
+var D = JSON.parse(document.getElementById("data").textContent);
+var SEV = ["CRITICAL","HIGH","MEDIUM","LOW","INFO"];
+var SEVC = {CRITICAL:"var(--crit)",HIGH:"var(--high)",MEDIUM:"var(--med)",LOW:"var(--low)",INFO:"var(--info)"};
+var VIEWS = ["overview","paths","findings"];
+var G = D.graph;
+var S = {route: D.paths.length ? 0 : -1, edge: null, node: null, plan: 0};
+var F = {sev: "ALL", q: "", open: {}, sortK: "severity", sortDir: 1};
+var PL = D.plans || [];   // remediation options, each breaking every route
+var X = D.exposure, XG = D.xg, XC = {}, XR = null, XCUR = null;  // exposure + live what-if
+
+// ── Live what-if: re-run the reverse reachability search with cut edges ──────
+function xInit(){if(!XG)return;XR={};XG.edges.forEach(function(e,i){(XR[e[1]]=XR[e[1]]||[]).push(i);});}
+function xState(){
+  var seen={},q=[],h=0;
+  XG.goals.forEach(function(g){seen[g]=1;q.push(g);});
+  while(h<q.length){var L=XR[q[h++]]||[];
+    for(var j=0;j<L.length;j++){var i=L[j];if(XC[i])continue;var s=XG.edges[i][0];if(!seen[s]){seen[s]=1;q.push(s);}}}
+  var all=XG.broad.some(function(b){return seen[b];}),names=[];
+  if(!all)XG.pop.forEach(function(p){if(seen[p])names.push(XG.nodes[p]);});
+  return {n:all?XG.total:names.length,all:all,names:names};
+}
+function xCuts(){return Object.keys(XC).filter(function(k){return XC[k];}).length;}
+function fmt(n){return Number(n).toLocaleString("en-US");}
+function pct(n){return XG&&XG.total?Math.round(1000*n/XG.total)/10:0;}
+function tween(el,from,to){
+  if(!el)return;var reduce=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if(reduce||from===to){el.textContent=fmt(to);return;}
+  var t0=null,dur=650;function f(t){if(t0===null)t0=t;var k=Math.min(1,(t-t0)/dur),e=1-Math.pow(1-k,3);
+    el.textContent=fmt(Math.round(from+(to-from)*e));if(k<1)requestAnimationFrame(f);}
+  requestAnimationFrame(f);
+}
+function xToggle(i,on){if(i==null||!XG)return;XC[i]=(on===undefined?!XC[i]:on);xRender();
+  if($("v-paths")&&$("v-paths").classList.contains("active")){drawGraph();renderInspector();}}
+function xRender(){
+  if(!XG||!$("xnum"))return;
+  var st=xState(),n=st.n,p=pct(n),zero=n===0,cuts=xCuts();
+  tween($("xnum"),XCUR===null?n:XCUR,n);XCUR=n;
+  $("xnum").classList.toggle("zero",zero);
+  $("xpct").textContent=p+"%";
+  var bar=$("xbarfill");bar.style.width=p+"%";bar.classList.toggle("zero",zero);
+  $("xstill").innerHTML=zero?(cuts?'✓ No user has a route left in the imported graph.':'No enabled user has a route in the imported data.')
+    :(st.all?'Every user is '+(cuts?'still ':'')+'exposed through '+esc(X.via_broad_groups.join(", ")||"a group every user is in")+'.'
+      :'Still exposed: '+esc(st.names.slice(0,6).map(short).join(", "))+(st.names.length>6?' +'+fmt(st.names.length-6)+' more':''));
+  $("xcuts").textContent=cuts?plural(cuts,"change")+" applied (what-if)":"";
+  $("xreset").style.display=cuts?"":"none";
+  each("[data-xi]",function(li){var i=li.getAttribute("data-xi");li.classList.toggle("on",!!XC[i]);
+    var b=li.querySelector(".xtog");if(b)b.textContent=XC[i]?"✓ Undo":"✂ Apply";});
+  var m=$("xmini");if(m)m.innerHTML='Exposure <b class="'+(zero?"zero":"")+'">'+p+'%</b>'+(cuts?' <span class="muted">('+plural(cuts,"cut")+', from '+X.percent+'%)</span>':'');
+}
+
+function sameEdge(c,e){return c.from===e.from&&c.to===e.to&&c.type===e.type&&(c.detail||"")===(e.detail||"");}
+function edgeOf(c){for(var i=0;i<G.edges.length;i++)if(sameEdge(c,G.edges[i]))return G.edges[i];return null;}
+// Edges the selected option cuts; without options, the structural choke points.
+function isCut(e){if(!PL.length)return e.choke;var p=PL[S.plan]||PL[0];
+  return p.changes.some(function(c){return sameEdge(c,e);});}
+
+function esc(s){s=(s==null?"":String(s));return s.replace(/[&<>"']/g,function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];});}
+function $(id){return document.getElementById(id);}
+function each(sel,fn){Array.prototype.forEach.call(document.querySelectorAll(sel),fn);}
+function short(s){s=s||"";var m=/^(APP|VANTAGE):(.+)$/i.exec(s);if(m)return m[2];
+  var i=s.indexOf("@");return i>0?s.slice(0,i):s;}
+function plural(n,w){return n+" "+w+(n===1?"":"s");}
+function pill(s){s=s||"INFO";return '<span class="pill sev-'+s+'">'+s+'</span>';}
+function bySev(a,b){return SEV.indexOf(a.severity||"INFO")-SEV.indexOf(b.severity||"INFO");}
+function uniq(a){var o=[];a.forEach(function(x){if(o.indexOf(x)<0)o.push(x);});return o;}
+
+var ICON = {user:"👤",group:"👥",computer:"🖥️",domain:"🏛️",principal:"🔑",webapp:"🌐",vantage:"🧪",gpo:"📜"};
+var TYPE = {user:"User",group:"Group",computer:"Computer",domain:"Domain",principal:"Principal",
+  webapp:"Web app",vantage:"Assessment vantage",gpo:"GPO"};
+var RIGHTS = {genericall:"GenericAll",genericwrite:"GenericWrite",writedacl:"WriteDacl",
+  writeowner:"WriteOwner",owns:"Owns",allextendedrights:"AllExtendedRights",
+  addkeycredentiallink:"AddKeyCredentialLink",writespn:"WriteSPN",
+  addallowedtoact:"AddAllowedToAct",writeaccountrestrictions:"WriteAccountRestrictions"};
+var ELABEL = {MemberOf:"Member of",AdminTo:"Admin to",HasSession:"Has session",
+  ForceChangePassword:"Reset password",AddMember:"Add member",DCSync:"DCSync",
+  Unconstrained:"Unconstrained deleg.",ConstrainedDeleg:"Constrained deleg.",
+  Reaches:"Reaches",ExecutesAs:"Acts as",AllowedToAct:"RBCD",HasSIDHistory:"SID history",
+  ReadLAPSPassword:"Reads LAPS",ReadGMSAPassword:"Reads gMSA",GPLink:"GPO applies"};
+function trustTag(t){return t==="validated"?'<span class="tag green">validated</span>'
+  :(t&&t!=="observed"?'<span class="tag amber">'+esc(t.replace("_"," "))+'</span>':'');}
+function edgeLabel(e){
+  if(e.type==="ACL"){var r=String(e.detail||"").split(" ")[0];return RIGHTS[r]||r||"ACL";}
+  if(e.type==="ADCS")return "ADCS "+String(e.detail||"").split(" ")[0];
+  return ELABEL[e.type]||e.type;
+}
+function explain(e){
+  var a="<b>"+esc(short(e.from))+"</b>", b="<b>"+esc(short(e.to))+"</b>";
+  switch(e.type){
+    case "MemberOf": return a+" is a member of "+b+" and inherits all of its rights.";
+    case "AdminTo": return a+" is a local administrator on "+b+".";
+    case "HasSession": return b+" is signed in to "+a+", so their credentials are in memory there.";
+    case "ForceChangePassword": return a+" can reset "+b+"'s password without knowing the current one.";
+    case "AddMember": return a+" can add members to "+b+", including itself.";
+    case "ACL": return a+" holds <b>"+esc(edgeLabel(e))+"</b> over "+b+", enough to take control of it.";
+    case "DCSync": return a+" can replicate secrets from the domain controllers, including the krbtgt hash.";
+    case "Unconstrained": return a+" is trusted for unconstrained delegation: if a domain controller is made to authenticate to it, the DC's ticket can be captured.";
+    case "ConstrainedDeleg": return a+" can impersonate users to services on "+b+" (S4U delegation).";
+    case "Reaches": return b+" answered requests from "+a+". Reaching an app does not mean controlling it.";
+    case "ExecutesAs": return "Through "+a+", an attacker can act with "+b+"'s privileges.";
+    case "AllowedToAct": return b+" already trusts "+a+" for resource-based delegation: "+a+" can impersonate any user to it (S4U).";
+    case "HasSIDHistory": return a+" carries "+b+"'s SID in its SID history, so it already holds "+b+"'s rights.";
+    case "ReadLAPSPassword": return a+" can read the local administrator password of "+b+" (LAPS).";
+    case "ReadGMSAPassword": return a+" can retrieve the managed password of "+b+".";
+    case "GPLink": return "The GPO "+a+" applies to "+b+": whoever can edit the GPO can run code on it. Security filtering isn't in the data.";
+    case "ADCS": var d=String(e.detail||""),i=d.indexOf(":");
+      return a+" can abuse certificate services ("+esc(i>0?d.slice(0,i):"ADCS")+"): "+esc(i>0?d.slice(i+1).trim():d)+".";
+  }
+  return a+" → "+b+" ("+esc(e.type)+").";
+}
+function fixText(e){
+  if(e.fix)return e.fix;                 // the engine's own wording, when it sent one
+  var a=short(e.from), b=short(e.to);
+  switch(e.type){
+    case "MemberOf": return "Remove "+a+" from "+b+".";
+    case "AdminTo": return "Remove "+a+" from the local Administrators group on "+b+" (use Windows LAPS for local admin).";
+    case "HasSession": return "Keep "+b+" off "+a+": Tier-0 accounts should only sign in to Tier-0 systems.";
+    case "ForceChangePassword": return "Remove the password-reset right "+a+" holds on "+b+".";
+    case "AddMember": return "Remove "+a+"'s right to change the membership of "+b+".";
+    case "ACL": return "Remove the "+edgeLabel(e)+" permission "+a+" holds on "+b+".";
+    case "DCSync": return "Remove replication rights (Get-Changes / Get-Changes-All) from "+a+".";
+    case "Unconstrained": return "Disable unconstrained delegation on "+a+" (use constrained or resource-based delegation).";
+    case "ConstrainedDeleg": return "Restrict what "+a+" may delegate to on "+b+".";
+    case "Reaches": return "Restrict which networks can reach "+b+".";
+    case "ExecutesAs": return "Fix the vulnerable endpoint in "+a+", and run it under an account with only the rights it needs.";
+  }
+  return "Remove this relationship.";
+}
+function edgeCmd(e,cmd){return e&&e.type==="MemberOf"?"":cmdBlock(cmd);}  // membership: nothing to run
+function cmdBlock(cmd){
+  var lines=String(cmd||"").split("\n"), notes=[], run=[];
+  lines.forEach(function(l){var t=l.trim();if(!t)return;
+    if(t.charAt(0)==="#")notes.push(t.replace(/^#\s*/,""));else run.push(t);});
+  if(!notes.length&&!run.length)return "";
+  var h='<div class="lab">Validate <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">(authorized testing only)</span></div>';
+  notes.forEach(function(n){h+='<div class="muted small">'+esc(n)+'</div>';});
+  run.forEach(function(c){h+='<div class="cmd"><code>'+esc(c)+'</code><button type="button" data-copy="'+esc(c)+'">copy</button></div>';});
+  return h;
+}
+function edgeById(id){for(var i=0;i<G.edges.length;i++)if(G.edges[i].id===id)return G.edges[i];return null;}
+function nodeById(id){for(var i=0;i<G.nodes.length;i++)if(G.nodes[i].id===id)return G.nodes[i];return null;}
+function edgeFor(s){for(var i=0;i<G.edges.length;i++){var e=G.edges[i];
+  if(e.from===s.from&&e.to===s.to&&e.type===s.type&&(e.detail||"")===(s.detail||""))return e;}return null;}
+function routeLinks(list){return list.map(function(i){return '<a href="#" data-route="'+i+'">Route '+(i+1)+'</a>';}).join(", ");}
+function tokens(s){var out=[];String(s||"").split(/\s*(?:→|,)\s*/).forEach(function(t){
+  t=t.trim();if(!t)return;var a=t.indexOf("@"),b=a>=0?t.indexOf("@",a+1):-1;
+  if(b>0){out.push(t.slice(0,b));out.push(t.slice(b+1));}else out.push(t);});
+  return out.map(function(x){return x.toUpperCase();});}
+function findingsFor(ids){var want=ids.map(function(x){return String(x).toUpperCase();});
+  return D.findings.filter(function(f){var tk=tokens(f.affected);
+    (f.evidence||[]).forEach(function(e){tk=tk.concat(tokens(e.object));});
+    return want.some(function(w){return tk.indexOf(w)>=0;});}).sort(bySev);}
+function relatedFindings(ids){var fs=findingsFor(ids);
+  if(!fs.length)return '<div class="lab">Related findings</div><p class="muted small">None directly on this item.</p>';
+  return '<div class="lab">Related findings ('+fs.length+')</div><ul class="flist">'+fs.slice(0,8).map(function(f){
+    return '<li>'+pill(f.severity)+' <a href="#" data-find="'+esc(f.id)+'">'+esc(f.title)+'</a></li>';}).join("")+'</ul>';}
+function copyText(t,btn){
+  function done(){var o=btn.textContent;btn.textContent="copied ✓";setTimeout(function(){btn.textContent=o;},1300);}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,fallback);}else fallback();
+  function fallback(){var ta=document.createElement("textarea");ta.value=t;ta.style.position="fixed";ta.style.opacity="0";
+    document.body.appendChild(ta);ta.select();try{document.execCommand("copy");done();}catch(x){}document.body.removeChild(ta);}
+}
+
+// ── Header + tabs ───────────────────────────────────────────────────────────
+(function(){
+  var m=D.meta;
+  $("hmeta").innerHTML="Domain <b>"+esc(m.domain)+"</b> · DC "+esc(m.dc)+" · "+esc(m.generated)+" · "+plural(m.total,"finding");
+  var h="";SEV.forEach(function(s){var n=m.counts[s]||0;if(!n)return;
+    h+='<div class="tile"><b style="color:'+SEVC[s]+'">'+n+'</b><span>'+s+'</span></div>';});
+  $("tiles").innerHTML=h;
+})();
+function show(v){
+  if(VIEWS.indexOf(v)<0)v=D.default_view||"overview";
+  each("nav.tabs button",function(b){b.classList.toggle("active",b.getAttribute("data-view")===v);});
+  VIEWS.forEach(function(x){$("v-"+x).classList.toggle("active",x===v);});
+  if(v==="paths")drawGraph();
+}
+each("nav.tabs button",function(b){b.onclick=function(){var v=b.getAttribute("data-view");
+  if(location.hash==="#"+v)show(v);else location.hash=v;};});
+window.addEventListener("hashchange",function(){show(location.hash.slice(1));});
+
+// ── Overview ────────────────────────────────────────────────────────────────
+function xItem(c,i,kind){
+  var right=kind==="plan"?(c.users_after===0?'<span class="xn" style="color:var(--green)">→ 0 left</span>':'<span class="xn">→ '+fmt(c.users_after)+' left</span>')
+    :'<span class="xn">−'+fmt(c.users_cut_off)+' users</span>';
+  return '<li'+(c.xi!=null?' data-xi="'+c.xi+'"':'')+'>'+(c.xi!=null?'<button type="button" class="xtog" data-xcut="'+c.xi+'">✂ Apply</button>':'')
+    +'<div class="xf">'+(kind==="plan"?'<b>'+(i+1)+'.</b> ':'')+esc(c.fix)+'<div class="muted small">'+esc(c.effect||"")+'</div></div>'+right+'</li>';
+}
+function exposureCard(){
+  if(!X||!XG)return "";
+  var goal=(X.targets||["Tier-0"]).join(", "),h='<div class="xcard" id="xcard"><div class="lab">Domain exposure · live what-if</div>'
+    +'<div class="xhead"><span class="xnum" id="xnum">'+fmt(X.users_exposed)+'</span><span class="xof">of <b>'+fmt(X.users_total)+'</b> users (<b id="xpct">'+X.percent+'%</b>) can reach <b>'+esc(goal)+'</b></span></div>'
+    +'<div class="xbar"><i id="xbarfill"></i></div><div class="xstill" id="xstill"></div><div class="xgrid">';
+  var pl=X.plan;
+  h+='<div><div class="lab">Fewest changes to reach 0%</div>';
+  if(pl&&pl.changes.length){h+='<p class="muted small">'+(pl.changes.length===1?'This one change cuts off every user.':'These '+pl.changes.length+' changes, made together, cut off every user.')+' Apply them one by one and watch the number.</p><ul class="xlist">'
+    +pl.changes.map(function(c,i){return xItem(c,i,"plan");}).join("")+'</ul>'
+    +'<div class="xactions"><button type="button" class="btn" data-xall="1">✂ Apply all '+pl.changes.length+'</button>';}
+  else{h+='<p class="muted small">'+esc(X.plan_note||(X.users_exposed?"":"Nothing to fix: no user has a route."))+'</p><div class="xactions">';}
+  h+='<button type="button" class="btn" id="xreset" data-xreset="1" style="display:none">↺ Reset</button><span class="muted small" id="xcuts"></span></div></div>';
+  h+='<div><div class="lab">Biggest single fixes</div>';
+  if(X.top_fixes&&X.top_fixes.length)h+='<p class="muted small">Each one on its own, ranked by users cut off.</p><ul class="xlist">'+X.top_fixes.map(function(c,i){return xItem(c,i,"top");}).join("")+'</ul>';
+  else if(X.users_exposed)h+='<p class="muted small">No single change cuts anyone off: every exposed user has more than one route. Use the plan.</p>';
+  h+='<p class="muted small">Want to try any other relationship? Open <a href="#paths">Attack Paths</a>, click it, and press ✂ Cut.</p></div></div>'
+    +'<details class="xmore"><summary>What this number counts</summary><p class="muted small">Enabled users, not Tier-0 accounts. A user is exposed when a route leads from them, or from a group every user is in, to '+esc(goal)+'. Modeled: '
+    +esc((X.modeled||[]).join("; "))+'.</p><p class="muted small">Not modeled: '+esc((X.not_modeled||[]).join("; "))+'.</p></details></div>';
+  return h;
+}
+(function(){
+  var m=D.meta,h=exposureCard()+'<div class="grid">';
+  h+='<div class="card"><div class="lab">Risk summary</div><table>';
+  SEV.forEach(function(s){h+='<tr><td>'+pill(s)+'</td><td>'+(m.counts[s]||0)+'</td></tr>';});
+  h+='</table>';
+  if(m.warnings&&m.warnings.length){h+='<div class="lab">Import warnings</div><ul>';
+    m.warnings.forEach(function(w){h+='<li class="muted">⚠️ '+esc(w)+'</li>';});h+='</ul>';}
+  h+='<div class="lab">Sources</div><div class="muted">'+esc((m.sources||[]).join(", ")||"—")+'</div></div>';
+  h+='<div class="card"><div class="lab">Attack paths</div>';
+  if(D.paths.length){
+    var chokes=G.edges.filter(function(e){return e.choke;}).length;
+    var starts=uniq(D.paths.map(function(p){return short(p.start);}));
+    h+='<h3>'+plural(D.paths.length,"route")+' from '+esc(starts.join(", "))+' to the target</h3>'
+      +'<p class="muted">Shortest: '+plural(D.paths[0].hops,"step")+'. '
+      +(chokes?'<span class="red">'+plural(chokes,"choke point")+'</span> — '+(chokes===1?'one fix breaks':'fixing any one breaks')+' every route.':'No single fix breaks every route.')+'</p>'
+      +'<a class="btn" href="#paths">Explore the attack paths →</a>';
+  }else h+='<p class="muted">No attack path found from the chosen foothold. Provide --owned, or collect session and local-admin data (SharpHound -c All).</p>';
+  h+='</div>';
+  h+='<div class="card"><div class="lab">Top exposures</div><table>';
+  D.findings.slice().sort(bySev).slice(0,8).forEach(function(f){
+    h+='<tr><td>'+pill(f.severity)+'</td><td><a href="#" data-find="'+esc(f.id)+'">'+esc(f.title)+'</a></td></tr>';});
+  h+='</table></div>';
+  h+='<div class="card"><div class="lab">MITRE ATT&amp;CK coverage</div><table><tr><th>Technique</th><th class="hm">Name</th><th>Max</th><th>#</th></tr>';
+  (D.mitre||[]).forEach(function(t){h+='<tr><td><a href="https://attack.mitre.org/techniques/'+t.id.replace(".","/")+'/" target="_blank" rel="noopener">'+t.id+'</a></td>'
+    +'<td class="hm">'+esc(t.name)+'</td><td>'+pill(t.max_severity)+'</td><td>'+t.count+'</td></tr>';});
+  h+='</table></div></div>';
+  $("v-overview").innerHTML=h;
+})();
+
+// ── Attack paths ────────────────────────────────────────────────────────────
+(function(){
+  if(!G.nodes.length){$("v-paths").innerHTML='<div class="card"><h2>Attack paths</h2><p class="muted">No attack path was computed for this run. Provide a foothold with --owned USER@DOMAIN, or collect session and local-admin data (SharpHound -c All).</p></div>';return;}
+  $("v-paths").innerHTML='<div class="phead"><div><h2>Attack paths</h2><div class="psum" id="psum"></div></div>'+(XG?'<span class="xmini" id="xmini"></span>':'')+'<div class="chips" id="routes"></div></div>'
+    +'<div class="gwrap" id="gbox"><svg id="gsvg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Attack path graph"></svg></div>'
+    +'<div class="legend"><span><i class="sq start"></i>Foothold</span><span><i class="sq goal"></i>Target</span>'
+    +'<span><i class="ln"></i>Selected route</span><span><i class="ln choke"></i>'+(PL.length?'✂ Selected fix':'✂ Choke point')+'</span>'
+    +'<span><i class="ln dash"></i>Inferred step</span><span>Click any node or relationship to inspect it</span></div>'
+    +'<div class="pgrid"><div class="card" id="walk"></div><div class="side"><div class="card" id="inspect"></div><div class="card" id="fix"></div></div></div>';
+  $("gsvg").addEventListener("click",function(){if(S.edge!==null||S.node!==null){S.edge=null;S.node=null;renderPaths();}});
+})();
+
+function renderPaths(){if(!G.nodes.length)return;renderRoutes();renderSummary();drawGraph();renderWalk();renderInspector();renderFix();}
+function renderRoutes(){
+  var h='<button type="button" class="chip'+(S.route<0?' on':'')+'" data-route="-1">All routes</button>';
+  D.paths.forEach(function(p,i){h+='<button type="button" class="chip'+(S.route===i?' on':'')+'" data-route="'+i+'">Route '+(i+1)+' · '
+    +plural(p.hops,"step")+(p.inferred_steps?' · inferred':'')+'</button>';});
+  $("routes").innerHTML=h;
+}
+function renderSummary(){
+  var starts=uniq(D.paths.map(function(p){return short(p.start);}));
+  var goals=uniq(D.paths.map(function(p){return short(p.goal);}));
+  var chokes=G.edges.filter(function(e){return e.choke;}).length;
+  $("psum").innerHTML=plural(D.paths.length,"route")+' from <b>'+esc(starts.join(", "))+'</b> to <b>'+esc(goals.join(", "))+'</b>'
+    +' · shortest '+plural(D.paths[0].hops,"step")+' · '
+    +(chokes?'<span class="red">'+plural(chokes,"choke point")+'</span>':'no single choke point');
+}
+function marker(id,col){return '<marker id="'+id+'" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="'+col+'"/></marker>';}
+function drawGraph(){
+  var box=$("gbox"),svg=$("gsvg");if(!box||!svg||!G.nodes.length)return;
+  var W=box.clientWidth;if(!W)return;             // hidden: drawn when shown
+  var cols={},maxD=0,maxR=0,P={},nW,nH=54,svgW,svgH,rowH,top,r=S.route;
+  G.nodes.forEach(function(n){(cols[n.depth]=cols[n.depth]||[]).push(n);if(n.depth>maxD)maxD=n.depth;});
+  // Left-to-right when every column fits at a readable width; otherwise top-to-bottom.
+  var V=W<(maxD+1)*236+24;
+  Object.keys(cols).forEach(function(d){
+    cols[d].sort(function(a,b){return (Math.min.apply(null,a.paths)-Math.min.apply(null,b.paths))||(a.id<b.id?-1:a.id>b.id?1:0);});
+    if(cols[d].length>maxR)maxR=cols[d].length;});
+  if(!V){
+    var ncol=maxD+1,colW=Math.max(236,(W-24)/ncol);rowH=112;top=42;
+    nW=Math.min(212,colW-100);svgW=Math.max(W-2,Math.ceil(ncol*colW)+24);svgH=top+maxR*rowH+6;
+    Object.keys(cols).forEach(function(d){var L=cols[d],off=(maxR-L.length)*rowH/2;
+      L.forEach(function(n,i){var cx=12+d*colW+colW/2,cy=top+off+i*rowH+rowH/2-8;
+        P[n.id]={x:cx-nW/2,y:cy-nH/2,cx:cx,cy:cy};});});
+  }else{
+    rowH=134;top=34;svgW=W-2;svgH=top+(maxD+1)*rowH-40;
+    nW=Math.min(220,(svgW-16)/maxR-12);
+    Object.keys(cols).forEach(function(d){var L=cols[d],slot=(svgW-16)/L.length;
+      L.forEach(function(n,i){var cx=8+slot*i+slot/2,cy=top+d*rowH+nH/2;
+        P[n.id]={x:cx-nW/2,y:cy-nH/2,cx:cx,cy:cy};});});
+  }
+  var fan={};G.edges.forEach(function(e){fan[e.from]=(fan[e.from]||0)+1;});
+  var h='<defs>'+marker("m-dim","#4c4c56")+marker("m-on","#C09A3C")+marker("m-choke","#E4002B")+'</defs>';
+  G.edges.forEach(function(e){
+    var a=P[e.from],b=P[e.to];if(!a||!b)return;
+    var x1,y1,x2,y2,c1x,c1y,c2x,c2y;
+    if(!V){x1=a.x+nW;y1=a.cy;x2=b.x-3;y2=b.cy;var dx=Math.max(48,Math.abs(x2-x1)/2);c1x=x1+dx;c1y=y1;c2x=x2-dx;c2y=y2;}
+    else{x1=a.cx;y1=a.y+nH;x2=b.cx;y2=b.y-3;var dy=Math.max(36,Math.abs(y2-y1)/2);c1x=x1;c1y=y1+dy;c2x=x2;c2y=y2-dy;}
+    var d="M"+x1.toFixed(1)+","+y1.toFixed(1)+" C"+c1x.toFixed(1)+","+c1y.toFixed(1)+" "+c2x.toFixed(1)+","+c2y.toFixed(1)+" "+x2.toFixed(1)+","+y2.toFixed(1);
+    var on=r<0||e.paths.indexOf(r)>=0,cut=isCut(e);
+    var cls="edge"+(on?" on":" dim")+(cut?" choke":"")+(e.xi!=null&&XC[e.xi]?" wcut":"")+(e.trust==="inferred"?" inferred":"")+(e.kind==="reachability"?" reach":"")+(S.edge===e.id?" sel":"");
+    var mk=cut?"m-choke":(on?"m-on":"m-dim");
+    var t=fan[e.from]>1?0.64:0.5,u=1-t,k0=u*u*u,k1=3*u*u*t,k2=3*u*t*t,k3=t*t*t;
+    var mx=k0*x1+k1*c1x+k2*c2x+k3*x2,my=k0*y1+k1*c1y+k2*c2y+k3*y2;
+    var lab=(e.xi!=null&&XC[e.xi]?"✕ ":(cut?"✂ ":(e.kept?"🔒 ":"")))+edgeLabel(e)+(e.trust==="inferred"?" (inferred)":"");
+    var pw=Math.round(lab.length*6.5+18),ph=21;
+    h+='<g class="'+cls+'" data-edge="'+e.id+'" tabindex="0" role="button" aria-label="'+esc(short(e.from)+" "+edgeLabel(e)+" "+short(e.to))+'">'
+      +'<path class="line" d="'+d+'" marker-end="url(#'+mk+')"/><path class="flow" d="'+d+'"/><path class="hit" d="'+d+'"/>'
+      +'<g class="pill" transform="translate('+(mx-pw/2).toFixed(1)+','+(my-ph/2).toFixed(1)+')"><rect width="'+pw+'" height="'+ph+'" rx="10.5"/>'
+      +'<text x="'+(pw/2)+'" y="14.5" text-anchor="middle">'+esc(lab)+'</text></g></g>';
+  });
+  G.nodes.forEach(function(n){
+    var p=P[n.id],on=r<0||n.paths.indexOf(r)>=0;
+    var cls="node "+n.kind+(on?"":" dim")+(S.node===n.id?" sel":"");
+    var avail=nW-58,cw=7.9,lbl=n.label,maxc=Math.max(4,Math.floor(avail*1.3/cw));
+    if(lbl.length>maxc)lbl=lbl.slice(0,maxc-1)+"…";
+    var fit=lbl.length*cw>avail?' textLength="'+avail.toFixed(0)+'" lengthAdjust="spacingAndGlyphs"':'';
+    h+='<g class="'+cls+'" data-node="'+esc(n.id)+'" tabindex="0" role="button" aria-label="'+esc(TYPE[n.otype]+" "+n.id)+'">'
+      +(n.kind!=="mid"?'<text class="badge" x="'+(p.x+3).toFixed(1)+'" y="'+(p.y-8).toFixed(1)+'">'+(n.kind==="start"?"FOOTHOLD":"TARGET")+'</text>':'')
+      +'<rect class="box" x="'+p.x.toFixed(1)+'" y="'+p.y.toFixed(1)+'" width="'+nW.toFixed(1)+'" height="'+nH+'" rx="12"/>'
+      +'<circle class="icbg" cx="'+(p.x+25).toFixed(1)+'" cy="'+p.cy.toFixed(1)+'" r="16"/>'
+      +'<text class="ic" x="'+(p.x+25).toFixed(1)+'" y="'+(p.cy+5.5).toFixed(1)+'" text-anchor="middle">'+(ICON[n.otype]||"🔑")+'</text>'
+      +'<text class="lbl" x="'+(p.x+49).toFixed(1)+'" y="'+(p.cy-2).toFixed(1)+'"'+fit+'>'+esc(lbl)+'</text>'
+      +'<text class="sub" x="'+(p.x+49).toFixed(1)+'" y="'+(p.cy+14).toFixed(1)+'">'+esc(TYPE[n.otype]||"Principal")+'</text></g>';
+  });
+  svg.setAttribute("viewBox","0 0 "+svgW+" "+svgH);svg.setAttribute("width",svgW);svg.setAttribute("height",svgH);
+  svg.innerHTML=h;
+  each("#gsvg [data-edge]",function(el){
+    el.onclick=function(ev){ev.stopPropagation();S.edge=+el.getAttribute("data-edge");S.node=null;renderPaths();};
+    el.onkeydown=function(ev){if(ev.key==="Enter"||ev.key===" "){ev.preventDefault();el.onclick(ev);}};});
+  each("#gsvg [data-node]",function(el){
+    el.onclick=function(ev){ev.stopPropagation();S.node=el.getAttribute("data-node");S.edge=null;renderPaths();};
+    el.onkeydown=function(ev){if(ev.key==="Enter"||ev.key===" "){ev.preventDefault();el.onclick(ev);}};});
+}
+function renderWalk(){
+  var el=$("walk"),r=S.route;
+  if(!D.paths.length){el.innerHTML='<p class="muted">No attack route found.</p>';return;}
+  if(r<0){
+    el.innerHTML='<div class="lab">All routes</div><h3>'+plural(D.paths.length,"route")+' to the target</h3>'
+      +D.paths.map(function(p,i){return '<div class="rcard"><b>Route '+(i+1)+'</b> · '+plural(p.hops,"step")+' · '
+        +esc(short(p.start))+' <span class="arrow">→</span> '+esc(short(p.goal))
+        +(p.inferred_steps?' · <span class="amber">'+p.inferred_steps+' inferred</span>':'')
+        +'<div class="muted small">'+esc(p.rationale||"")+'</div><a href="#" data-route="'+i+'">Walk through this route →</a></div>';}).join("");
+    return;}
+  var p=D.paths[r];
+  var h='<div class="lab">Route '+(r+1)+' — step by step</div><h3>'+esc(short(p.start))+' <span class="arrow">→</span> '+esc(short(p.goal))+'</h3>'
+    +'<p class="muted small">'+plural(p.hops,"step")+' · '+(p.validated_steps?esc(p.rationale):(p.inferred_steps?p.inferred_steps+' inferred step(s) need an extra action to work':'every step is a relationship observed in the data'))+'</p><ol class="steps">';
+  p.steps.forEach(function(s,i){var e=edgeFor(s),cmd=(p.commands||[])[i]||"";
+    h+='<li class="step'+(e&&S.edge===e.id?' sel':'')+'"'+(e?' data-edge-sel="'+e.id+'"':'')+'>'
+      +'<div class="stop"><span class="num">'+(i+1)+'</span><span><b>'+esc(short(s.from))+'</b> <span class="rel">'+esc(e?edgeLabel(e):s.type)+'</span> <b>'+esc(short(s.to))+'</b></span>'
+      +(e&&e.choke?'<span class="tag t-choke">✂ choke point</span>':'')+trustTag(s.trust)+'</div>'
+      +'<p>'+(e?explain(e):esc(s.detail||""))+'</p>'+edgeCmd(e,cmd)+'</li>';});
+  h+='</ol><div class="reached">🎯 Target reached: <b>'+esc(p.goal)+'</b></div>'
+    +'<p class="muted small"><b>Why this ranks #'+(r+1)+':</b> '+esc(p.rationale||"")+'</p>';
+  el.innerHTML=h;
+}
+function renderInspector(){
+  var el=$("inspect");
+  var e=S.edge!==null?edgeById(S.edge):null, n=S.node!==null?nodeById(S.node):null;
+  if(e){
+    el.innerHTML='<div class="lab">Relationship</div><h3>'+esc(short(e.from))+' <span class="arrow">→</span> '+esc(short(e.to))+'</h3>'
+      +'<div><span class="tag t-rel">'+esc(edgeLabel(e))+'</span><span class="tag">'+(e.trust==="inferred"?"inferred":"observed")+'</span>'
+      +(e.choke?'<span class="tag t-choke">✂ choke point</span>':'')+'</div>'
+      +'<p>'+explain(e)+'</p>'
+      +(e.trust==="inferred"?'<p class="muted small">Inferred: the data makes this step possible, but it needs an extra action (coercion, relay, delegation abuse or a GPO refresh) to work.</p>':'')
+      +edgeCmd(e,e.command)
+      +'<div class="lab">Remediation impact</div><p>'+(e.choke?'<b class="red">✂ Choke point.</b> Removing this relationship breaks every route shown.'
+        :(e.alt?'Another route remains if only this is fixed.':'Not analysed for this run.'))
+      +(e.kept?' 🔒 Marked as required (<code>--keep</code>): the remediation options leave it in place.':'')+'</p>'
+      +'<div class="lab">Fix</div><p>'+esc(fixText(e))+'</p>'
+      +(e.xi!=null&&XG?'<div class="xactions"><button type="button" class="xtog'+(XC[e.xi]?' on':'')+'" data-xcut="'+e.xi+'">'+(XC[e.xi]?'↺ Restore':'✂ Cut (what-if)')+'</button>'
+        +'<span class="muted small">Exposure now: <b>'+fmt(xState().n)+'</b> users ('+pct(xState().n)+'%)</span></div>':'')
+      +'<div class="lab">On routes</div><p>'+routeLinks(e.paths)+'</p>'+relatedFindings([e.from,e.to]);
+    return;}
+  if(n){
+    var role=n.kind==="start"?"Foothold — where the routes begin.":(n.kind==="goal"?"Target — the asset these routes reach.":"Stepping stone on the way to the target.");
+    el.innerHTML='<div class="lab">'+esc(TYPE[n.otype]||"Principal")+'</div><h3>'+(ICON[n.otype]||"")+' '+esc(n.id)+'</h3>'
+      +'<p class="muted">'+role+'</p><div class="lab">On routes</div><p>'+routeLinks(n.paths)+'</p>'+relatedFindings([n.id]);
+    return;}
+  el.innerHTML='<div class="lab">Inspector</div><p class="muted">Click any node or relationship in the graph to see what it means, how to validate it, and how to fix it.</p>';
+}
+function changeItem(c){var e=edgeOf(c);
+  return '<li>'+(e?'<a href="#" data-edge-sel="'+e.id+'">'+esc(c.fix)+'</a>':esc(c.fix)+' <span class="muted small">(on a route not drawn here)</span>')
+    +'<div class="eff">'+esc(c.effect)+(c.note?' <span class="muted">'+esc(c.note)+'</span>':'')+'</div></li>';}
+function planMeta(p){var m=p.memberships_removed;
+  return plural(p.changes.length,"change")+' · '+(m?'removes '+plural(m,"group membership"):'no one leaves a group');}
+function renderFix(){
+  if(PL.length){
+    var k=Math.min(S.plan,PL.length-1),p=PL[k],n=p.changes.length;
+    var h='<div class="lab">Remediation</div><h3>✂ '+(k===0?'Fix this first':esc(p.title))+'</h3>'
+      +'<p class="muted small">'+(n===1?'This one change breaks':'These '+n+' changes together break')
+      +' every route in the imported graph, including any not drawn here.</p><ol class="fixes">'+p.changes.map(changeItem).join("")+'</ol>';
+    if(PL.length>1){h+='<div class="lab">Compare options</div><div class="opts">'
+      +PL.map(function(q,i){return '<button type="button" class="opt'+(i===k?' on':'')+'" data-plan="'+i+'"><b>Option '+(i+1)+' · '+esc(q.title)+'</b>'
+        +'<span>'+planMeta(q)+'</span><span>'+esc(q.summary)+'</span></button>';}).join("")+'</div>';}
+    if(D.keep&&D.keep.length)h+='<p class="muted small">🔒 Kept as required: '+esc(D.keep.join(", "))+'</p>';
+    h+='<p class="muted small">Someone needs this access for their job? Mark it as required with <code>--keep "SRC-&gt;DST"</code> and HorusEye plans around it.</p>';
+    $("fix").innerHTML=h;return;}
+  var chokes=G.edges.filter(function(e){return e.choke;}),others=G.edges.filter(function(e){return !e.choke;});
+  var h='<div class="lab">Remediation</div><h3>✂ Fix this first</h3>';
+  if(chokes.length){h+='<p class="muted small">'+(chokes.length===1?'This one change breaks':'Any one of these changes breaks')+' every route shown:</p><ol class="fixes">'
+    +chokes.map(function(e){return '<li><a href="#" data-edge-sel="'+e.id+'">'+esc(fixText(e))+'</a></li>';}).join("")+'</ol>';}
+  else h+='<p class="muted small">No single change breaks every route. Work through the fixes below, starting with Route 1.</p>';
+  if(others.length){h+='<div class="lab">Also on these routes</div><p class="muted small">Each closes a route, but another route stays open:</p><ul class="fixes">'
+    +others.map(function(e){return '<li><a href="#" data-edge-sel="'+e.id+'">'+esc(fixText(e))+'</a></li>';}).join("")+'</ul>';}
+  $("fix").innerHTML=h;
+}
+
+// ── Findings ────────────────────────────────────────────────────────────────
+(function(){
+  var h='<h2>Findings</h2><div class="controls"><span class="fbtn active" data-sev="ALL">All</span>';
+  SEV.forEach(function(s){if(D.meta.counts[s])h+='<span class="fbtn" data-sev="'+s+'">'+s+'</span>';});
+  h+='<input id="fq" type="search" placeholder="Search title, affected object or rule…" aria-label="Search findings"></div>'
+    +'<div class="tscroll"><table id="ftab"><thead><tr><th data-k="severity">Severity</th><th class="hm" data-k="score">Score</th>'
+    +'<th class="hm" data-k="confidence">Conf.</th><th class="hm" data-k="rule_id">Rule</th><th data-k="affected">Affected</th><th>Title</th></tr></thead><tbody></tbody></table></div>';
+  $("v-findings").innerHTML=h;
+  each("#v-findings .fbtn",function(b){b.onclick=function(){F.sev=b.getAttribute("data-sev");syncFilterUI();renderFindings();};});
+  $("fq").oninput=function(){F.q=this.value;renderFindings();};
+  each("#ftab th[data-k]",function(th){th.onclick=function(){var k=th.getAttribute("data-k");
+    if(F.sortK===k)F.sortDir=-F.sortDir;else{F.sortK=k;F.sortDir=1;}renderFindings();};});
+  renderFindings();
+})();
+function syncFilterUI(){each("#v-findings .fbtn",function(x){x.classList.toggle("active",x.getAttribute("data-sev")===F.sev);});$("fq").value=F.q;}
+function findingDetail(f){
+  var h="";
+  if(f.description)h+='<p>'+esc(f.description)+'</p>';
+  if(f.confidence)h+='<div class="muted small">Confidence <b>'+esc(f.confidence)+'</b> — '+esc(f.confidence_reason||"")+'</div>';
+  if(f.evidence&&f.evidence.length){h+='<div class="lab">Evidence ('+f.evidence.length+')</div><ul>';
+    f.evidence.slice(0,60).forEach(function(e){h+='<li><code>'+esc(e.object)+'</code>'+(e.detail?' — '+esc(e.detail):'')
+      +' <span class="muted small">('+esc(e.source)+(e.file?", "+esc(e.file):"")+')</span></li>';});
+    if(f.evidence.length>60)h+='<li class="muted">+'+(f.evidence.length-60)+' more</li>';h+='</ul>';}
+  if(f.commands&&f.commands.length)h+=cmdBlock(f.commands.join("\n"));
+  if(f.remediation&&f.remediation.length){h+='<div class="lab">Remediation</div><ul>';f.remediation.forEach(function(x){h+='<li>'+esc(x)+'</li>';});h+='</ul>';}
+  if(f.detection&&f.detection.length){h+='<div class="lab">Detection</div><ul>';f.detection.forEach(function(x){h+='<li>'+esc(x)+'</li>';});h+='</ul>';}
+  if(f.mitre&&f.mitre.length){h+='<div class="lab">MITRE ATT&amp;CK</div><div>'+f.mitre.map(function(m){
+    return '<a href="https://attack.mitre.org/techniques/'+m.id.replace(".","/")+'/" target="_blank" rel="noopener">'+m.id+'</a> '+esc(m.name);}).join("<br>")+'</div>';}
+  return h;
+}
+function renderFindings(){
+  var rows=D.findings.filter(function(f){
+    if(F.sev!=="ALL"&&(f.severity||"INFO")!==F.sev)return false;
+    if(F.q){var s=(f.title+" "+f.affected+" "+(f.rule_id||f.type)).toLowerCase();if(s.indexOf(F.q.toLowerCase())<0)return false;}
+    return true;});
+  rows.sort(function(a,b){
+    if(F.sortK==="severity")return bySev(a,b)*F.sortDir;
+    if(F.sortK==="score")return ((b.score||0)-(a.score||0))*F.sortDir;
+    return String(a[F.sortK]||"").localeCompare(String(b[F.sortK]||""))*F.sortDir;});
+  var out="";
+  rows.forEach(function(f){var open=!!F.open[f.id];
+    out+='<tr class="frow'+(open?' open':'')+'" data-fid="'+esc(f.id)+'"><td>'+pill(f.severity)+'</td><td class="hm">'+(f.score==null?"":f.score)+'</td>'
+      +'<td class="hm muted">'+esc(f.confidence||"")+'</td><td class="hm"><code>'+esc(f.rule_id||f.type)+'</code></td>'
+      +'<td class="muted">'+esc(f.affected)+'</td><td>'+esc(f.title)+'</td></tr>'
+      +'<tr class="detail" style="display:'+(open?'table-row':'none')+'"><td colspan="6">'+findingDetail(f)+'</td></tr>';});
+  var tb=document.querySelector("#ftab tbody");
+  tb.innerHTML=out||'<tr><td colspan="6" class="muted">No findings match.</td></tr>';
+  each("#ftab .frow",function(tr){tr.onclick=function(ev){if(ev.target.closest("[data-copy],a"))return;
+    var id=tr.getAttribute("data-fid");F.open[id]=!F.open[id];renderFindings();};});
+}
+function openFinding(id){
+  F.sev="ALL";F.q="";F.open={};F.open[id]=true;syncFilterUI();renderFindings();
+  if(location.hash!=="#findings")location.hash="findings";else show("findings");
+  setTimeout(function(){var tr=document.querySelector('#ftab tr[data-fid="'+(window.CSS&&CSS.escape?CSS.escape(id):id)+'"]');
+    if(tr)tr.scrollIntoView({behavior:"smooth",block:"center"});},60);
+}
+
+// ── Global interactions ─────────────────────────────────────────────────────
+document.addEventListener("click",function(ev){
+  var t=ev.target,b;
+  if(!t||!t.closest)return;
+  if((b=t.closest("[data-copy]"))){ev.preventDefault();ev.stopPropagation();copyText(b.getAttribute("data-copy"),b);return;}
+  if((b=t.closest("[data-route]"))){ev.preventDefault();S.route=+b.getAttribute("data-route");S.edge=null;S.node=null;
+    renderPaths();if(location.hash!=="#paths")location.hash="paths";return;}
+  if((b=t.closest("[data-plan]"))){ev.preventDefault();S.plan=+b.getAttribute("data-plan");S.edge=null;S.node=null;renderPaths();return;}
+  if((b=t.closest("[data-edge-sel]"))){ev.preventDefault();S.edge=+b.getAttribute("data-edge-sel");S.node=null;renderPaths();
+    var gb=$("gbox");if(gb&&gb.getBoundingClientRect().top<0)gb.scrollIntoView({behavior:"smooth",block:"start"});return;}
+  if((b=t.closest("[data-find]"))){ev.preventDefault();openFinding(b.getAttribute("data-find"));return;}
+  if((b=t.closest("[data-xcut]"))){ev.preventDefault();xToggle(+b.getAttribute("data-xcut"));return;}
+  if((b=t.closest("[data-xall]"))){ev.preventDefault();(X.plan?X.plan.changes:[]).forEach(function(c){if(c.xi!=null)XC[c.xi]=true;});
+    xToggle(null);xRender();if($("v-paths").classList.contains("active")){drawGraph();renderInspector();}return;}
+  if((b=t.closest("[data-xreset]"))){ev.preventDefault();XC={};xRender();if($("v-paths").classList.contains("active")){drawGraph();renderInspector();}return;}
+});
+var _rt;window.addEventListener("resize",function(){clearTimeout(_rt);_rt=setTimeout(function(){
+  if($("v-paths").classList.contains("active"))drawGraph();},120);});
+xInit();
+renderPaths();
+xRender();
+show(location.hash.slice(1)||D.default_view||"overview");
+</script>
+</body></html>
