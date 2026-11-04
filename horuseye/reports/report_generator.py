@@ -25,7 +25,7 @@ SEV_COLOR = {"CRITICAL": "bold red", "HIGH": "bold yellow", "MEDIUM": "yellow",
 SEV_HEX = {"CRITICAL": "#ff4444", "HIGH": "#ff8800", "MEDIUM": "#ffcc00",
            "LOW": "#88cc00", "INFO": "#888888"}
 SEV_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
-TOOL = "HorusEye v2.3"
+TOOL = "HorusEye v2.4"
 
 
 class ReportGenerator:
@@ -38,6 +38,8 @@ class ReportGenerator:
         self.remediation_plans = []   # alternative fix plans, each breaking every route
         self.keep = []                # relationships marked business-required (--keep)
         self.conditional_paths = []   # routes needing an assumed / not-assessed step
+        self.exposure = None          # domain-wide: who can reach Tier-0, and the fix
+        self.retest = None            # comparison with a --diff baseline, when given
         # Timestamp is injectable so reports are byte-reproducible for the same
         # input + config (e.g. CI sets SOURCE_DATE_EPOCH). Defaults to now.
         self.generated_at = generated_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -98,7 +100,7 @@ class ReportGenerator:
                        f'<tr><th>Technique</th><th>Name</th><th>Max severity</th>'
                        f'<th>Findings</th></tr>{mitre_rows}</table>') if mitre_rows else ""
 
-        paths_block = self._html_paths()
+        paths_block = self._html_exposure() + self._html_paths()
 
         cards = ""
         for f in sorted(self.findings, key=lambda x: SEV_ORDER.index((x.get("severity") or "INFO").upper())):
@@ -136,6 +138,8 @@ class ReportGenerator:
   a{{color:#5ab0ff}} .path{{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin:12px 0}}
   .hop{{font-family:ui-monospace,Consolas,monospace;font-size:13px}} .edge{{color:var(--red)}}
   footer{{color:var(--muted);font-size:12px;margin-top:40px;border-top:1px solid var(--line);padding-top:12px}}
+  .xbig{{font-size:34px;font-weight:800;margin:6px 0 2px}} .xbar{{height:12px;background:#222;border-radius:6px;overflow:hidden;margin:8px 0 14px}}
+  .xbar i{{display:block;height:100%;background:var(--red)}} .left{{color:var(--muted);white-space:nowrap}}
 </style></head><body><div class="wrap">
 <h1>𓂀 {TOOL} — Attack-Path Report</h1>
 <div class="meta">Domain <b>{dom}</b> &nbsp;•&nbsp; DC {dc} &nbsp;•&nbsp; Generated {gen}
@@ -214,6 +218,75 @@ class ReportGenerator:
         return out
 
     @staticmethod
+    def _exposure_goal(x: dict) -> str:
+        t = x.get("targets") or ["Tier-0"]
+        return "Tier-0" if t == ["Tier-0"] else ", ".join(t)
+
+    @staticmethod
+    def _users(n: int) -> str:
+        return f"{n:,} user{'s' if n != 1 else ''}"
+
+    def _html_exposure(self) -> str:
+        x = self.exposure
+        if not x or not x.get("computed"):
+            return ""
+        esc = html.escape
+        pct = x["percent"]
+        out = [f'<h2>Domain Exposure</h2><div class="xbig" style="color:'
+               f'{"var(--red)" if pct else "#3fae6a"}">{x["users_exposed"]:,} of {x["users_total"]:,} '
+               f'users ({pct:g}%)</div><div class="meta">can reach {esc(self._exposure_goal(x))}'
+               + (f' — every user, through {esc(", ".join(x["via_broad_groups"]))}'
+                  if x.get("via_broad_groups") else "")
+               + f'</div><div class="xbar"><i style="width:{pct:g}%"></i></div>']
+        plan = x.get("plan")
+        if plan:
+            k = len(plan["changes"])
+            rows = "".join(
+                f'<tr><td>{i}</td><td>{esc(c["fix"])}<br><span class="meta">{esc(c["effect"])}</span></td>'
+                f'<td class="left">{self._users(c["users_after"])} left</td></tr>'
+                for i, c in enumerate(plan["changes"], 1))
+            out.append(f'<p><b>Fewest changes to reach 0%</b> <span class="meta">({k} change'
+                       f'{"s" if k != 1 else ""}, made together)</span></p>'
+                       f'<table><tr><th>#</th><th>Change</th><th>Exposed after</th></tr>{rows}</table>')
+        elif x.get("plan_note") and x["users_exposed"]:
+            out.append(f'<p class="meta">{esc(x["plan_note"])}</p>')
+        if x.get("top_fixes"):
+            rows = "".join(f'<tr><td>{esc(c["fix"])}</td><td class="left">'
+                           f'{self._users(c["users_cut_off"])} cut off</td></tr>' for c in x["top_fixes"])
+            out.append(f'<p><b>Biggest single fixes</b> <span class="meta">(each on its own)</span></p>'
+                       f'<table><tr><th>Change</th><th>Effect</th></tr>{rows}</table>')
+        out.append('<p class="meta">Counts enabled users, not Tier-0 accounts. Not modeled: '
+                   + esc("; ".join(x.get("not_modeled") or [])) + '.</p>')
+        return "".join(out)
+
+    def _md_exposure(self) -> list:
+        x = self.exposure
+        if not x or not x.get("computed"):
+            return []
+        out = ["## Domain Exposure", "",
+               f"**{x['users_exposed']:,} of {x['users_total']:,} users ({x['percent']:g}%) can reach "
+               f"{self._exposure_goal(x)}.**"
+               + (f" Every user is exposed through {', '.join(x['via_broad_groups'])}."
+                  if x.get("via_broad_groups") else ""), ""]
+        plan = x.get("plan")
+        if plan:
+            k = len(plan["changes"])
+            out += [f"### Fewest changes to reach 0% ({k} change{'s' if k != 1 else ''}, made together)", "",
+                    "| # | Change | Exposed after |", "|---|---|---|"]
+            out += [f"| {i} | {c['fix']} | {self._users(c['users_after'])} |"
+                    for i, c in enumerate(plan["changes"], 1)]
+            out.append("")
+        elif x.get("plan_note") and x["users_exposed"]:
+            out += [x["plan_note"], ""]
+        if x.get("top_fixes"):
+            out += ["### Biggest single fixes", "", "| Change | Users cut off |", "|---|---|"]
+            out += [f"| {c['fix']} | {c['users_cut_off']:,} |" for c in x["top_fixes"]]
+            out.append("")
+        out += ["*Counts enabled users, not Tier-0 accounts. Not modeled: "
+                + "; ".join(x.get("not_modeled") or []) + ".*", ""]
+        return out
+
+    @staticmethod
     def _plan_meta(p: dict) -> str:
         n, m = len(p["changes"]), p.get("memberships_removed", 0)
         return (f"{n} change{'s' if n != 1 else ''} · "
@@ -245,7 +318,8 @@ class ReportGenerator:
         from horuseye.reports.explorer import build_explorer
         page = build_explorer(self.findings, self.attack_paths, self.remediation,
                               self.domain_data, self.generated_at,
-                              plans=self.remediation_plans, keep=self.keep)
+                              plans=self.remediation_plans, keep=self.keep,
+                              exposure=self.exposure)
         Path(filepath).write_text(page, encoding="utf-8")
         self._p(f"[green]🧭 Explorer → {filepath}[/green]")
 
@@ -260,6 +334,8 @@ class ReportGenerator:
                 "| Severity | " + " | ".join(SEV_ORDER) + " |",
                 "|" + "---|" * (len(SEV_ORDER) + 1),
                 "| Findings | " + " | ".join(str(c[s]) for s in SEV_ORDER) + " |", ""]
+
+        out += self._md_exposure()
 
         if self.attack_paths:
             out += ["## Attack Paths to Domain Admin", ""]
@@ -342,7 +418,7 @@ class ReportGenerator:
     def export_json(self, filepath: str):
         data = {
             "tool": TOOL,
-            "schema": "horuseye.report/3",
+            "schema": "horuseye.report/4",
             "generated": self.generated_iso,
             "author": "Omar Tamer",
             "domain": self.domain_data.get("domain", ""),
@@ -357,8 +433,11 @@ class ReportGenerator:
             "conditional_paths": self.conditional_paths,
             "remediation_plans": self.remediation_plans,
             "keep": self.keep,
+            "exposure": self.exposure,
             "findings": self.findings,
         }
+        if self.retest:
+            data["retest"] = self.retest
         Path(filepath).write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
         self._p(f"[green]📄 JSON report → {filepath}[/green]")
 

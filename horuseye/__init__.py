@@ -1,2 +1,2 @@
 """HorusEye — AI-assisted Active Directory attack-path analysis platform."""
-__version__ = "2.3.0"
+__version__ = "2.4.0"

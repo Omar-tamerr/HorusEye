@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-HorusEye v2.3 — AI-Powered Active Directory Attack Platform
+HorusEye v2.4 — AI-Powered Active Directory Attack Platform
 Author: Omar Tamer 🇪🇬
 """
 
@@ -36,7 +36,7 @@ BANNER = r"""
  ██╔══██║██║   ██║██╔══██╗██║   ██║╚════██║
  ██║  ██║╚██████╔╝██║  ██║╚██████╔╝███████║
  ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝[/bold red][bold white]
- ███████╗██╗   ██╗███████╗  [bold red]v2.3[/bold red]
+ ███████╗██╗   ██╗███████╗  [bold red]v2.4[/bold red]
  ██╔════╝╚██╗ ██╔╝██╔════╝
  █████╗   ╚████╔╝ █████╗
  ██╔══╝    ╚██╔╝  ██╔══╝
@@ -46,9 +46,9 @@ BANNER = r"""
 EYE = r"""[bold yellow]
        .^.
       /|||\ 
-     / ||| \     [bold white]𓂀  HorusEye v2.3  𓂀[/bold white]
+     / ||| \     [bold white]𓂀  HorusEye v2.4  𓂀[/bold white]
     /  𓂀  \    [bold red]🇪🇬 Omar Tamer — Egypt[/bold red]
-   /________\[/bold yellow]"""
+   /________\\[/bold yellow]"""
 
 
 def print_banner():
@@ -89,11 +89,11 @@ def main():
     print_banner()
 
     parser = argparse.ArgumentParser(
-        description="HorusEye v2.3 𓂀 — AI-Powered AD Attack Platform by Omar Tamer 🇪🇬",
+        description="HorusEye v2.4 𓂀 — AI-Powered AD Attack Platform by Omar Tamer 🇪🇬",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  𓂀  HorusEye v2.3 — Usage Examples
+  𓂀  HorusEye v2.4 — Usage Examples
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   [Full Interactive Mode]
@@ -215,7 +215,11 @@ def main():
     g8.add_argument("--markdown",    metavar="FILE", help="Export Markdown report with Mermaid attack-path diagrams")
     g8.add_argument("--explorer",    metavar="FILE", help="Export the interactive offline HTML explorer (dashboard + graph + findings)")
     g8.add_argument("--diff",        metavar="OLD.json", help="Compare against a previous JSON report (retest: new / fixed / unchanged)")
-    g8.add_argument("--fail-on",     metavar="LEVEL", choices=["critical","high","medium","low"], help="Exit non-zero if a finding at/above LEVEL exists (for CI gates)")
+    g8.add_argument("--fail-on",     metavar="GATE", action="append",
+                    choices=["critical","high","medium","low","new-route","exposure-up"],
+                    help="CI gate, repeatable. critical/high/medium/low: exit 2 if a finding at/above it exists. "
+                         "new-route / exposure-up (need --diff): exit 4 if a new attack route appeared or "
+                         "more users can reach Tier-0 than in the baseline")
     g8.add_argument("--severity",    choices=["critical","high","all"], default="all")
     g8.add_argument("--config",      action="store_true")
     g8.add_argument("--check-deps",  action="store_true", help="Check external toolchain (hashcat, nxc, impacket, certipy, ...) on PATH")
@@ -367,6 +371,8 @@ _EDGE_STYLE = {
     "MemberOf": "dim", "ACL": "bold yellow", "ForceChangePassword": "yellow",
     "AddMember": "yellow", "AdminTo": "cyan", "HasSession": "magenta",
     "DCSync": "bold red", "Unconstrained": "bold red", "ConstrainedDeleg": "red",
+    "AllowedToAct": "red", "HasSIDHistory": "yellow", "ReadLAPSPassword": "cyan",
+    "ReadGMSAPassword": "yellow", "GPLink": "yellow", "ADCS": "bold red",
 }
 
 
@@ -401,6 +407,54 @@ def _print_plans(plans, keep):
             console.print(f"      [dim]{escape(c['effect'] + note)}[/dim]")
     console.print("  [dim]Access someone needs for their job? Mark it with --keep 'SRC->DST' "
                   "and HorusEye plans around it.[/dim]\n")
+
+
+def _bar(pct: float, width: int = 30) -> str:
+    full = int(round(width * pct / 100.0))
+    return "█" * full + "░" * (width - full)
+
+
+def _users(n: int) -> str:
+    return f"{n:,} user{'s' if n != 1 else ''}"
+
+
+def render_exposure(x):
+    """Print the domain-wide exposure: who can reach the targets, and the
+    fewest changes that bring it to zero."""
+    if not x or not x.get("computed"):
+        return
+    goal = "Tier-0" if x.get("targets") == ["Tier-0"] else ", ".join(x.get("targets") or [])
+    console.print(Rule(f"[bold red][ 𓂀 DOMAIN EXPOSURE ][/bold red]"))
+    console.print()
+    n, tot, pct = x["users_exposed"], x["users_total"], x["percent"]
+    color = "bold red" if pct >= 25 else ("bold yellow" if pct else "bold green")
+    console.print(f"  [{color}]{n:,} of {tot:,} users ({pct:g}%) can reach {escape(goal)}[/{color}]")
+    console.print(f"  [{color.split()[-1]}]{_bar(pct)}[/{color.split()[-1]}]")
+    if x.get("via_broad_groups"):
+        console.print(f"  [dim]Every user is exposed through "
+                      f"{escape(', '.join(x['via_broad_groups']))}.[/dim]")
+    if not n:
+        console.print("  [green]No enabled user has a route in the imported data.[/green]\n")
+        return
+    plan = x.get("plan")
+    if plan:
+        k = len(plan["changes"])
+        console.print(f"\n  [bold cyan]𓂀 Fewest changes to reach 0%[/bold cyan] "
+                      f"[dim]({k} change{'s' if k != 1 else ''}, together)[/dim]")
+        for i, c in enumerate(plan["changes"], 1):
+            left = c["users_after"]
+            tail = ("[bold green]→ 0 users left[/bold green]" if left == 0
+                    else f"[dim]→ {_users(left)} left[/dim]")
+            console.print(f"    [green]✂ {i}.[/green] {escape(c['fix'])}  {tail}")
+    elif x.get("plan_note"):
+        console.print(f"\n  [yellow]{escape(x['plan_note'])}[/yellow]")
+    if x.get("top_fixes"):
+        console.print("\n  [bold cyan]𓂀 Biggest single fixes[/bold cyan] [dim](each on its own)[/dim]")
+        for c in x["top_fixes"]:
+            console.print(f"    [green]✂[/green] {escape(c['fix'])}  "
+                          f"[bold]{_users(c['users_cut_off'])} cut off[/bold]")
+    console.print(f"\n  [dim]Counts enabled users, not Tier-0 accounts. Not modeled: "
+                  f"{escape('; '.join(x.get('not_modeled') or []))}.[/dim]\n")
 
 
 def render_attack_paths(domain_data, args):
@@ -495,6 +549,15 @@ def _print_conditional(conditional):
         _print_steps(desc)
 
 
+def _drift_without_baseline(args) -> bool:
+    gates = [g for g in (getattr(args, "fail_on", None) or []) if g in ("new-route", "exposure-up")]
+    if gates and not getattr(args, "diff", None):
+        console.print(f"[bold red]✖ --fail-on {gates[0]} compares against a baseline: "
+                      f"add --diff OLD.json.[/bold red]")
+        return True
+    return False
+
+
 def run_main_analysis(args, config, claude_key):
     from horuseye.parsers.all_parsers import parse_all_sources
     from horuseye.core.attack_detector import AttackDetector
@@ -508,6 +571,10 @@ def run_main_analysis(args, config, claude_key):
     from horuseye.features.wordlist_generator import WordlistGenerator
     from horuseye.features.password_sprayer import PasswordSprayer
     from horuseye.reports.report_generator import ReportGenerator
+
+    if _drift_without_baseline(args):
+        from horuseye.core.exit_codes import ERROR
+        return ERROR
 
     creds_mgr = CredsManager(console)
     team = TeamBroadcaster(console, args.team_connect if hasattr(args, "team_connect") else None)
@@ -578,14 +645,21 @@ def run_main_analysis(args, config, claude_key):
     if args.graph:
         graph_paths = render_attack_paths(domain_data, args)
         reporter.attack_paths = graph_paths
+    # Domain exposure: every user, not one foothold. Cheap, so always on.
+    from horuseye.core.graph import AttackGraph
+    owned = [o.strip() for o in (args.owned or "").split(",") if o.strip()] or None
+    targets = [t.strip() for t in (getattr(args, "target", "") or "").split(",") if t.strip()] or None
+    keep = _keep_list(args)
+    g = AttackGraph(domain_data)
+    reporter.exposure = g.exposure(targets=targets, keep=keep)
+    reporter.keep = keep
+    render_exposure(reporter.exposure)
+
     # Reports carry the remediation impact and options; the explorer also
-    # needs the paths. Compute quietly if the --graph view didn't produce them.
-    if args.graph or getattr(args, "explorer", None):
-        from horuseye.core.graph import AttackGraph
-        owned = [o.strip() for o in (args.owned or "").split(",") if o.strip()] or None
-        targets = [t.strip() for t in (getattr(args, "target", "") or "").split(",") if t.strip()] or None
-        keep = _keep_list(args)
-        g = AttackGraph(domain_data)
+    # needs the paths, and a retest diff compares them. Compute quietly if the
+    # --graph view didn't produce them.
+    if (args.graph or getattr(args, "explorer", None) or args.json or args.report
+            or args.markdown or args.diff):
         if not reporter.attack_paths:
             reporter.attack_paths = [g.describe(p) for p in
                                      g.shortest_paths(owned=owned, targets=targets,
@@ -639,6 +713,10 @@ def run_main_analysis(args, config, claude_key):
                 creds_mgr.save(c)
                 team.broadcast({"event": "creds_found", "creds": c})
 
+    # ── Retest comparison (printed after the reports, embedded in the JSON) ──
+    retest = compute_retest(args.diff, scored, reporter) if args.diff else None
+    reporter.retest = retest
+
     # ── Reports ───────────────────────────────────────────────────────────
     if args.report:
         animated_task("Generating HTML report", ["Building", "Embedding", "Finalizing"], "green")
@@ -657,39 +735,91 @@ def run_main_analysis(args, config, claude_key):
 
     # ── Retest diff ────────────────────────────────────────────────────────
     if args.diff:
-        render_diff(args.diff, scored)
+        render_diff(args.diff, retest)
 
     # ── Always print creds summary ────────────────────────────────────────
     creds_mgr.print_summary()
 
     # ── CI gate ──────────────────────────────────────────────────────────────
     if args.fail_on:
-        from horuseye.core.diff import fail_level_exceeded
-        from horuseye.core.exit_codes import FINDINGS, INCOMPLETE, OK, assessment_is_incomplete
+        from horuseye.core.diff import DRIFT_GATES, drift_gate_failures, fail_level_exceeded
+        from horuseye.core.exit_codes import (DRIFT, FINDINGS, INCOMPLETE, OK,
+                                              assessment_is_incomplete)
         if assessment_is_incomplete(domain_data):
             console.print("[bold red]✖ assessment incomplete — a source was given but no "
                           "usable objects were parsed; not trusting a clean result "
                           "(exit 3).[/bold red]")
             return INCOMPLETE
-        if fail_level_exceeded(scored, args.fail_on):
-            console.print(f"[bold red]✖ findings at or above {args.fail_on.upper()} "
+        levels = [g for g in args.fail_on if g not in DRIFT_GATES]
+        tripped = [g for g in levels if fail_level_exceeded(scored, g)]
+        drift = drift_gate_failures(args.fail_on, (retest or {}).get("routes"),
+                                    (retest or {}).get("exposure"))
+        if tripped:
+            console.print(f"[bold red]✖ findings at or above {tripped[0].upper()} "
                           f"— failing (exit 2).[/bold red]")
+        for reason in drift:
+            console.print(f"[bold red]✖ {escape(reason)} — failing (exit 4).[/bold red]")
+        if tripped:
             return FINDINGS
+        if drift:
+            return DRIFT
         return OK
     return 0
 
 
-def render_diff(old_path, current):
+def compute_retest(old_path, current, reporter):
+    """Compare this run with a previous JSON report: findings, attack routes
+    and exposure. Returns a JSON-ready dict, or {"error": ...}."""
+    from horuseye.core.diff import diff_exposure, diff_findings, diff_routes, load_report
+    try:
+        prev = load_report(old_path)
+    except Exception as e:
+        return {"baseline": old_path, "error": str(e)}
+    f = diff_findings(prev.get("findings") or [], current)
+    r = diff_routes(prev.get("attack_paths") or [], reporter.attack_paths or [])
+    x = diff_exposure(prev.get("exposure"), reporter.exposure)
+    return {"baseline": old_path, "baseline_generated": prev.get("generated", ""),
+            "findings": f, "routes": r, "exposure": x}
+
+
+def render_diff(old_path, retest):
     """Print a retest comparison against a previous JSON report."""
-    from horuseye.core.diff import load_previous, diff_findings
     console.print(Rule("[bold red][ 𓂀 RETEST DIFF ][/bold red]"))
     console.print()
-    try:
-        previous = load_previous(old_path)
-    except Exception as e:
-        console.print(f"  [red]Could not read {old_path}: {e}[/red]\n")
+    if not retest or retest.get("error"):
+        console.print(f"  [red]Could not read {escape(str(old_path))}: "
+                      f"{escape(str((retest or {}).get('error', '')))}[/red]\n")
         return
-    d = diff_findings(previous, current)
+    x = retest["exposure"]
+    if x["comparable"]:
+        delta = (x["after"] or 0) - (x["before"] or 0)
+        color = "bold red" if x["rose"] else ("bold green" if delta < 0 else "bold white")
+        arrow = "▲" if delta > 0 else ("▼" if delta < 0 else "=")
+        console.print(f"  [bold]Exposure[/bold]  {x['before']:,} → [{color}]{x['after']:,} users "
+                      f"({x['before_pct']:g}% → {x['after_pct']:g}%) {arrow}[/{color}]")
+        if x["newly_exposed"]:
+            names = ", ".join(x["newly_exposed"][:8]) + (f" +{len(x['newly_exposed']) - 8} more"
+                                                          if len(x["newly_exposed"]) > 8 else "")
+            console.print(f"    [bold red]✚ gained a route:[/bold red] {escape(names)}")
+        if x["no_longer_exposed"]:
+            console.print(f"    [bold green]✓ no longer exposed:[/bold green] "
+                          f"{len(x['no_longer_exposed']):,} user(s)")
+    elif x.get("reason"):
+        console.print(f"  [dim]Exposure: {escape(x['reason'])}[/dim]")
+    r = retest["routes"]
+    if not r.get("comparable", True):
+        console.print(f"  [dim]Routes: {escape(r['reason'])}[/dim]")
+    if r["new"] or r["closed"] or r["still_open"]:
+        console.print(f"  [bold]Routes[/bold]  [bold red]✚ new: {len(r['new'])}[/bold red]   "
+                      f"[bold green]✓ closed: {len(r['closed'])}[/bold green]   "
+                      f"[dim]= still open: {len(r['still_open'])}[/dim]")
+        for p in r["new"]:
+            chain = " → ".join([p.get("start", "")] + [s.get("to", "") for s in p.get("steps", [])])
+            console.print(f"    [bold red]✚ NEW ROUTE[/bold red] {escape(chain)}")
+        for p in r["closed"]:
+            chain = " → ".join([p.get("start", "")] + [s.get("to", "") for s in p.get("steps", [])])
+            console.print(f"    [bold green]✓ CLOSED[/bold green] [dim]{escape(chain)}[/dim]")
+    d = retest["findings"]
     console.print(f"  [bold green]✓ Fixed:[/bold green] {len(d['fixed'])}   "
                   f"[bold red]✚ New:[/bold red] {len(d['new'])}   "
                   f"[dim]= Unchanged: {len(d['unchanged'])}[/dim]\n")

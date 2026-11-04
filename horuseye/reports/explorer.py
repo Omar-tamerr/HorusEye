@@ -13,6 +13,12 @@ client. Three views:
   inspector for any node or relationship, and a "fix this first" panel.
 * **Findings** — filterable, searchable, sortable, with full evidence.
 
+The overview opens on **domain exposure**: how many users can reach Tier-0, the
+fewest changes that bring it to zero, and the biggest single fixes. It is live:
+cut any relationship (from those lists, or from the attack-path graph) and the
+page re-runs the reachability search in the browser, so the number drops as you
+go. The embedded graph is only what can reach a target.
+
 ``demo`` (optional) turns on website-only extras for the public live demo: a top
 bar linking back to the site, a "synthetic data" label, and link-preview meta
 tags. Normal ``--explorer`` reports never include them.
@@ -58,11 +64,13 @@ def _node_types(domain_data: Optional[Dict]):
     users = names(d.get("users"), "name")
     comps = (names(d.get("computers"), "name") | names(d.get("local_admins"), "computer")
              | names(d.get("sessions"), "ComputerName"))
-    return groups, users, comps, str(d.get("domain") or "").strip().upper()
+    gpos = names(d.get("gpos"), "name")
+    return groups, users, comps, str(d.get("domain") or "").strip().upper(), gpos
 
 
 def _otype(name: str, types) -> str:
-    groups, users, comps, dom = types
+    groups, users, comps, dom = types[:4]
+    gpos = types[4] if len(types) > 4 else set()
     n = (name or "").strip().upper()
     if n.startswith("APP:"):
         return "webapp"
@@ -70,6 +78,8 @@ def _otype(name: str, types) -> str:
         return "vantage"
     if dom and n == dom:
         return "domain"
+    if n in gpos:
+        return "gpo"
     if n in comps:
         return "computer"
     if n in groups:
@@ -126,6 +136,7 @@ def build_graph_view(paths: List[Dict], impact: List[Dict],
                     "trust": s.get("trust", "observed"),
                     "kind": s.get("kind", "control"),
                     "command": cmds[si] if si < len(cmds) else "",
+                    "fix": s.get("fix", ""),
                     "choke": bool(h and h.get("breaks_path")),
                     "alt": None if h is None else bool(h.get("alternative_remains")),
                     "kept": bool(h and h.get("kept")),
@@ -139,6 +150,30 @@ def build_graph_view(paths: List[Dict], impact: List[Dict],
     for name, n in nodes.items():
         n["kind"] = "start" if name in starts else ("goal" if name in goals else "mid")
     return {"nodes": list(nodes.values()), "edges": list(edges.values())}
+
+
+def build_whatif(exposure: Optional[Dict], domain_data: Optional[Dict], graph: Dict):
+    """Embed the reachability graph behind ``exposure`` and point every change
+    (plan, single fixes, drawn route edges) at its relationship index ``xi``.
+    Returns ``(exposure_for_page, whatif_graph)``; both None without exposure."""
+    if not exposure or not exposure.get("computed") or not domain_data:
+        return None, None
+    from horuseye.core.graph import AttackGraph
+    from horuseye.core.principals import norm
+    t = exposure.get("targets") or ["Tier-0"]
+    view = AttackGraph(domain_data).whatif_view(None if t == ["Tier-0"] else t)
+    index = {k: i for i, k in enumerate(view.pop("keys"))}
+
+    def xi(c):
+        return index.get((norm(c.get("from", "")), norm(c.get("to", "")),
+                          c.get("type", ""), c.get("detail", "")))
+    page = {k: v for k, v in exposure.items() if k != "exposed_users"}
+    if page.get("plan"):
+        page["plan"] = dict(page["plan"], changes=[dict(c, xi=xi(c)) for c in page["plan"]["changes"]])
+    page["top_fixes"] = [dict(c, xi=xi(c)) for c in page.get("top_fixes") or []]
+    for e in graph.get("edges", []):
+        e["xi"] = xi(e)
+    return page, view
 
 
 # ── Page assembly ────────────────────────────────────────────────────────────
@@ -168,7 +203,7 @@ def _demo_bar(demo: Dict) -> str:
     parts = ['<div class="demobar">',
              f'<a class="home" href="{e(demo.get("home_url") or "./")}">← <span class="hsm">HorusEye </span>home</a>',
              '<span class="demotag">Live demo</span>',
-             '<span class="demonote">Synthetic ACME.LAB data — no real systems</span>',
+             f'<span class="demonote">{e(demo.get("note") or "Synthetic ACME.LAB data — no real systems")}</span>',
              '<span class="sp"></span>']
     if demo.get("repo_url"):
         parts.append(f'<a class="ghl" href="{e(demo["repo_url"])}" target="_blank" rel="noopener">GitHub</a>')
@@ -181,7 +216,8 @@ def _demo_bar(demo: Dict) -> str:
 def build_explorer(findings: List[Dict], paths: List[Dict], impact: List[Dict],
                    domain_data: Dict, generated_at: str,
                    demo: Optional[Dict] = None, version: Optional[str] = None,
-                   plans: Optional[List[Dict]] = None, keep: Optional[List[str]] = None) -> str:
+                   plans: Optional[List[Dict]] = None, keep: Optional[List[str]] = None,
+                   exposure: Optional[Dict] = None) -> str:
     if version is None:
         try:
             from horuseye import __version__ as version
@@ -198,6 +234,8 @@ def build_explorer(findings: List[Dict], paths: List[Dict], impact: List[Dict],
         mitre = []
 
     pr = domain_data.get("parse_report", {}) or {}
+    graph = build_graph_view(paths, impact, domain_data)
+    x_page, x_graph = build_whatif(exposure, domain_data, graph)
     data = {
         "meta": {
             "domain": domain_data.get("domain", "N/A"),
@@ -211,7 +249,9 @@ def build_explorer(findings: List[Dict], paths: List[Dict], impact: List[Dict],
         "mitre": mitre,
         "findings": findings,
         "paths": paths or [],
-        "graph": build_graph_view(paths, impact, domain_data),
+        "graph": graph,
+        "exposure": x_page,
+        "xg": x_graph,
         "plans": plans or [],
         "keep": [str(k).replace("->", " → ") for k in keep or []],
         "default_view": (demo or {}).get("default_view") or "overview",
@@ -221,14 +261,16 @@ def build_explorer(findings: List[Dict], paths: List[Dict], impact: List[Dict],
     ver = f"v{version}" if version else ""
 
     if demo:
-        title = f"HorusEye Live Demo — attack paths in {dom}"
-        desc = ("Interactive HorusEye report on a synthetic Active Directory: two attack "
-                "routes to domain control, the one fix that breaks both, and every finding "
-                "with evidence, remediation and detection guidance.")
+        title = demo.get("title") or f"HorusEye Live Demo — attack paths in {dom}"
+        desc = demo.get("description") or (
+            "Interactive HorusEye report on a synthetic Active Directory: two attack "
+            "routes to domain control, the one fix that breaks both, and every finding "
+            "with evidence, remediation and detection guidance.")
         head = _demo_head(demo, title, desc)
         bar = _demo_bar(demo)
         home = html.escape(str(demo.get("home_url") or "./"), quote=True)
-        footer = (f"Live demo generated by HorusEye {ver} from the bundled acme-lab example — "
+        footer = (f"Live demo generated by HorusEye {ver} from the bundled "
+                  f"{html.escape(str(demo.get('source') or 'acme-lab'))} example — "
                   f"synthetic data, no real systems. <a href=\"{home}\">← Back to the HorusEye site</a>")
     else:
         title = f"HorusEye Explorer — {dom}"
@@ -408,6 +450,36 @@ __HEAD_EXTRA__
  .flist{list-style:none;margin:4px 0;padding:0} .flist li{margin:5px 0}
  .flist a{color:#e9e9ec;text-decoration:none} .flist a:hover{color:var(--gold)}
 
+ /* exposure (live what-if) */
+ .xcard{background:linear-gradient(180deg,#1b0b10,var(--panel) 70%);border:1px solid #3a1820;border-radius:14px;
+   padding:16px 18px;margin-bottom:16px}
+ .xhead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+ .xnum{font-size:46px;font-weight:800;color:var(--red2);line-height:1;font-variant-numeric:tabular-nums}
+ .xnum.zero{color:var(--green)}
+ .xof{font-size:16px;color:#fff} .xof b{font-variant-numeric:tabular-nums}
+ .xbar{height:14px;background:#26262c;border-radius:7px;overflow:hidden;margin:12px 0 6px}
+ .xbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--red),var(--red2));transition:width .6s ease}
+ .xbar i.zero{background:var(--green)}
+ .xstill{color:var(--muted);font-size:12.5px;min-height:18px}
+ .xgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:10px}
+ .xlist{list-style:none;margin:6px 0;padding:0}
+ .xlist li{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--line);
+   border-radius:10px;margin:6px 0;background:var(--panel2);transition:border-color .15s,background .15s}
+ .xlist li.on{border-color:var(--red);background:#1d0b0f}
+ .xlist .xf{flex:1} .xlist .xn{color:var(--muted);font-size:12px;white-space:nowrap}
+ .xtog{flex:none;background:var(--panel);border:1px solid #44444c;color:#fff;border-radius:7px;padding:3px 10px;
+   cursor:pointer;font:inherit;font-size:12px;white-space:nowrap}
+ .xtog:hover{border-color:var(--gold)} li.on .xtog,.xtog.on{background:var(--red);border-color:var(--red)}
+ .xactions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
+ .xactions button{font:inherit;cursor:pointer}
+ .xmini{font-size:12.5px;color:var(--muted);border:1px solid var(--line);border-radius:14px;padding:4px 10px;background:var(--panel2)}
+ .xmini b{color:var(--red2)} .xmini b.zero{color:var(--green)}
+ .edge.wcut .line{stroke:var(--red2);stroke-dasharray:4 5}
+ .edge.wcut .pill rect{stroke:var(--red2);fill:#2a0c12}
+ details.xmore summary{cursor:pointer;color:var(--muted);font-size:12.5px;margin-top:10px}
+ @media(max-width:800px){.xgrid{grid-template-columns:1fr} .xnum{font-size:38px}}
+ @media (prefers-reduced-motion:reduce){.xbar i{transition:none}}
+
  /* findings */
  .controls{display:flex;gap:8px;align-items:center;margin:10px 0;flex-wrap:wrap}
  .controls input{background:var(--panel2);border:1px solid var(--line);color:var(--fg);
@@ -459,6 +531,47 @@ var G = D.graph;
 var S = {route: D.paths.length ? 0 : -1, edge: null, node: null, plan: 0};
 var F = {sev: "ALL", q: "", open: {}, sortK: "severity", sortDir: 1};
 var PL = D.plans || [];   // remediation options, each breaking every route
+var X = D.exposure, XG = D.xg, XC = {}, XR = null, XCUR = null;  // exposure + live what-if
+
+// ── Live what-if: re-run the reverse reachability search with cut edges ──────
+function xInit(){if(!XG)return;XR={};XG.edges.forEach(function(e,i){(XR[e[1]]=XR[e[1]]||[]).push(i);});}
+function xState(){
+  var seen={},q=[],h=0;
+  XG.goals.forEach(function(g){seen[g]=1;q.push(g);});
+  while(h<q.length){var L=XR[q[h++]]||[];
+    for(var j=0;j<L.length;j++){var i=L[j];if(XC[i])continue;var s=XG.edges[i][0];if(!seen[s]){seen[s]=1;q.push(s);}}}
+  var all=XG.broad.some(function(b){return seen[b];}),names=[];
+  if(!all)XG.pop.forEach(function(p){if(seen[p])names.push(XG.nodes[p]);});
+  return {n:all?XG.total:names.length,all:all,names:names};
+}
+function xCuts(){return Object.keys(XC).filter(function(k){return XC[k];}).length;}
+function fmt(n){return Number(n).toLocaleString("en-US");}
+function pct(n){return XG&&XG.total?Math.round(1000*n/XG.total)/10:0;}
+function tween(el,from,to){
+  if(!el)return;var reduce=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if(reduce||from===to){el.textContent=fmt(to);return;}
+  var t0=null,dur=650;function f(t){if(t0===null)t0=t;var k=Math.min(1,(t-t0)/dur),e=1-Math.pow(1-k,3);
+    el.textContent=fmt(Math.round(from+(to-from)*e));if(k<1)requestAnimationFrame(f);}
+  requestAnimationFrame(f);
+}
+function xToggle(i,on){if(i==null||!XG)return;XC[i]=(on===undefined?!XC[i]:on);xRender();
+  if($("v-paths")&&$("v-paths").classList.contains("active")){drawGraph();renderInspector();}}
+function xRender(){
+  if(!XG||!$("xnum"))return;
+  var st=xState(),n=st.n,p=pct(n),zero=n===0,cuts=xCuts();
+  tween($("xnum"),XCUR===null?n:XCUR,n);XCUR=n;
+  $("xnum").classList.toggle("zero",zero);
+  $("xpct").textContent=p+"%";
+  var bar=$("xbarfill");bar.style.width=p+"%";bar.classList.toggle("zero",zero);
+  $("xstill").innerHTML=zero?(cuts?'✓ No user has a route left in the imported graph.':'No enabled user has a route in the imported data.')
+    :(st.all?'Every user is '+(cuts?'still ':'')+'exposed through '+esc(X.via_broad_groups.join(", ")||"a group every user is in")+'.'
+      :'Still exposed: '+esc(st.names.slice(0,6).map(short).join(", "))+(st.names.length>6?' +'+fmt(st.names.length-6)+' more':''));
+  $("xcuts").textContent=cuts?plural(cuts,"change")+" applied (what-if)":"";
+  $("xreset").style.display=cuts?"":"none";
+  each("[data-xi]",function(li){var i=li.getAttribute("data-xi");li.classList.toggle("on",!!XC[i]);
+    var b=li.querySelector(".xtog");if(b)b.textContent=XC[i]?"✓ Undo":"✂ Apply";});
+  var m=$("xmini");if(m)m.innerHTML='Exposure <b class="'+(zero?"zero":"")+'">'+p+'%</b>'+(cuts?' <span class="muted">('+plural(cuts,"cut")+', from '+X.percent+'%)</span>':'');
+}
 
 function sameEdge(c,e){return c.from===e.from&&c.to===e.to&&c.type===e.type&&(c.detail||"")===(e.detail||"");}
 function edgeOf(c){for(var i=0;i<G.edges.length;i++)if(sameEdge(c,G.edges[i]))return G.edges[i];return null;}
@@ -477,20 +590,23 @@ function pill(s){s=s||"INFO";return '<span class="pill sev-'+s+'">'+s+'</span>';
 function bySev(a,b){return SEV.indexOf(a.severity||"INFO")-SEV.indexOf(b.severity||"INFO");}
 function uniq(a){var o=[];a.forEach(function(x){if(o.indexOf(x)<0)o.push(x);});return o;}
 
-var ICON = {user:"👤",group:"👥",computer:"🖥️",domain:"🏛️",principal:"🔑",webapp:"🌐",vantage:"🧪"};
+var ICON = {user:"👤",group:"👥",computer:"🖥️",domain:"🏛️",principal:"🔑",webapp:"🌐",vantage:"🧪",gpo:"📜"};
 var TYPE = {user:"User",group:"Group",computer:"Computer",domain:"Domain",principal:"Principal",
-  webapp:"Web app",vantage:"Assessment vantage"};
+  webapp:"Web app",vantage:"Assessment vantage",gpo:"GPO"};
 var RIGHTS = {genericall:"GenericAll",genericwrite:"GenericWrite",writedacl:"WriteDacl",
   writeowner:"WriteOwner",owns:"Owns",allextendedrights:"AllExtendedRights",
-  addkeycredentiallink:"AddKeyCredentialLink",writespn:"WriteSPN"};
+  addkeycredentiallink:"AddKeyCredentialLink",writespn:"WriteSPN",
+  addallowedtoact:"AddAllowedToAct",writeaccountrestrictions:"WriteAccountRestrictions"};
 var ELABEL = {MemberOf:"Member of",AdminTo:"Admin to",HasSession:"Has session",
   ForceChangePassword:"Reset password",AddMember:"Add member",DCSync:"DCSync",
   Unconstrained:"Unconstrained deleg.",ConstrainedDeleg:"Constrained deleg.",
-  Reaches:"Reaches",ExecutesAs:"Acts as"};
+  Reaches:"Reaches",ExecutesAs:"Acts as",AllowedToAct:"RBCD",HasSIDHistory:"SID history",
+  ReadLAPSPassword:"Reads LAPS",ReadGMSAPassword:"Reads gMSA",GPLink:"GPO applies"};
 function trustTag(t){return t==="validated"?'<span class="tag green">validated</span>'
   :(t&&t!=="observed"?'<span class="tag amber">'+esc(t.replace("_"," "))+'</span>':'');}
 function edgeLabel(e){
   if(e.type==="ACL"){var r=String(e.detail||"").split(" ")[0];return RIGHTS[r]||r||"ACL";}
+  if(e.type==="ADCS")return "ADCS "+String(e.detail||"").split(" ")[0];
   return ELABEL[e.type]||e.type;
 }
 function explain(e){
@@ -507,10 +623,18 @@ function explain(e){
     case "ConstrainedDeleg": return a+" can impersonate users to services on "+b+" (S4U delegation).";
     case "Reaches": return b+" answered requests from "+a+". Reaching an app does not mean controlling it.";
     case "ExecutesAs": return "Through "+a+", an attacker can act with "+b+"'s privileges.";
+    case "AllowedToAct": return b+" already trusts "+a+" for resource-based delegation: "+a+" can impersonate any user to it (S4U).";
+    case "HasSIDHistory": return a+" carries "+b+"'s SID in its SID history, so it already holds "+b+"'s rights.";
+    case "ReadLAPSPassword": return a+" can read the local administrator password of "+b+" (LAPS).";
+    case "ReadGMSAPassword": return a+" can retrieve the managed password of "+b+".";
+    case "GPLink": return "The GPO "+a+" applies to "+b+": whoever can edit the GPO can run code on it. Security filtering isn't in the data.";
+    case "ADCS": var d=String(e.detail||""),i=d.indexOf(":");
+      return a+" can abuse certificate services ("+esc(i>0?d.slice(0,i):"ADCS")+"): "+esc(i>0?d.slice(i+1).trim():d)+".";
   }
   return a+" → "+b+" ("+esc(e.type)+").";
 }
 function fixText(e){
+  if(e.fix)return e.fix;                 // the engine's own wording, when it sent one
   var a=short(e.from), b=short(e.to);
   switch(e.type){
     case "MemberOf": return "Remove "+a+" from "+b+".";
@@ -581,8 +705,34 @@ each("nav.tabs button",function(b){b.onclick=function(){var v=b.getAttribute("da
 window.addEventListener("hashchange",function(){show(location.hash.slice(1));});
 
 // ── Overview ────────────────────────────────────────────────────────────────
+function xItem(c,i,kind){
+  var right=kind==="plan"?(c.users_after===0?'<span class="xn" style="color:var(--green)">→ 0 left</span>':'<span class="xn">→ '+fmt(c.users_after)+' left</span>')
+    :'<span class="xn">−'+fmt(c.users_cut_off)+' users</span>';
+  return '<li'+(c.xi!=null?' data-xi="'+c.xi+'"':'')+'>'+(c.xi!=null?'<button type="button" class="xtog" data-xcut="'+c.xi+'">✂ Apply</button>':'')
+    +'<div class="xf">'+(kind==="plan"?'<b>'+(i+1)+'.</b> ':'')+esc(c.fix)+'<div class="muted small">'+esc(c.effect||"")+'</div></div>'+right+'</li>';
+}
+function exposureCard(){
+  if(!X||!XG)return "";
+  var goal=(X.targets||["Tier-0"]).join(", "),h='<div class="xcard" id="xcard"><div class="lab">Domain exposure · live what-if</div>'
+    +'<div class="xhead"><span class="xnum" id="xnum">'+fmt(X.users_exposed)+'</span><span class="xof">of <b>'+fmt(X.users_total)+'</b> users (<b id="xpct">'+X.percent+'%</b>) can reach <b>'+esc(goal)+'</b></span></div>'
+    +'<div class="xbar"><i id="xbarfill"></i></div><div class="xstill" id="xstill"></div><div class="xgrid">';
+  var pl=X.plan;
+  h+='<div><div class="lab">Fewest changes to reach 0%</div>';
+  if(pl&&pl.changes.length){h+='<p class="muted small">'+(pl.changes.length===1?'This one change cuts off every user.':'These '+pl.changes.length+' changes, made together, cut off every user.')+' Apply them one by one and watch the number.</p><ul class="xlist">'
+    +pl.changes.map(function(c,i){return xItem(c,i,"plan");}).join("")+'</ul>'
+    +'<div class="xactions"><button type="button" class="btn" data-xall="1">✂ Apply all '+pl.changes.length+'</button>';}
+  else{h+='<p class="muted small">'+esc(X.plan_note||(X.users_exposed?"":"Nothing to fix: no user has a route."))+'</p><div class="xactions">';}
+  h+='<button type="button" class="btn" id="xreset" data-xreset="1" style="display:none">↺ Reset</button><span class="muted small" id="xcuts"></span></div></div>';
+  h+='<div><div class="lab">Biggest single fixes</div>';
+  if(X.top_fixes&&X.top_fixes.length)h+='<p class="muted small">Each one on its own, ranked by users cut off.</p><ul class="xlist">'+X.top_fixes.map(function(c,i){return xItem(c,i,"top");}).join("")+'</ul>';
+  else if(X.users_exposed)h+='<p class="muted small">No single change cuts anyone off: every exposed user has more than one route. Use the plan.</p>';
+  h+='<p class="muted small">Want to try any other relationship? Open <a href="#paths">Attack Paths</a>, click it, and press ✂ Cut.</p></div></div>'
+    +'<details class="xmore"><summary>What this number counts</summary><p class="muted small">Enabled users, not Tier-0 accounts. A user is exposed when a route leads from them, or from a group every user is in, to '+esc(goal)+'. Modeled: '
+    +esc((X.modeled||[]).join("; "))+'.</p><p class="muted small">Not modeled: '+esc((X.not_modeled||[]).join("; "))+'.</p></details></div>';
+  return h;
+}
 (function(){
-  var m=D.meta,h='<div class="grid">';
+  var m=D.meta,h=exposureCard()+'<div class="grid">';
   h+='<div class="card"><div class="lab">Risk summary</div><table>';
   SEV.forEach(function(s){h+='<tr><td>'+pill(s)+'</td><td>'+(m.counts[s]||0)+'</td></tr>';});
   h+='</table>';
@@ -613,7 +763,7 @@ window.addEventListener("hashchange",function(){show(location.hash.slice(1));});
 // ── Attack paths ────────────────────────────────────────────────────────────
 (function(){
   if(!G.nodes.length){$("v-paths").innerHTML='<div class="card"><h2>Attack paths</h2><p class="muted">No attack path was computed for this run. Provide a foothold with --owned USER@DOMAIN, or collect session and local-admin data (SharpHound -c All).</p></div>';return;}
-  $("v-paths").innerHTML='<div class="phead"><div><h2>Attack paths</h2><div class="psum" id="psum"></div></div><div class="chips" id="routes"></div></div>'
+  $("v-paths").innerHTML='<div class="phead"><div><h2>Attack paths</h2><div class="psum" id="psum"></div></div>'+(XG?'<span class="xmini" id="xmini"></span>':'')+'<div class="chips" id="routes"></div></div>'
     +'<div class="gwrap" id="gbox"><svg id="gsvg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Attack path graph"></svg></div>'
     +'<div class="legend"><span><i class="sq start"></i>Foothold</span><span><i class="sq goal"></i>Target</span>'
     +'<span><i class="ln"></i>Selected route</span><span><i class="ln choke"></i>'+(PL.length?'✂ Selected fix':'✂ Choke point')+'</span>'
@@ -670,11 +820,11 @@ function drawGraph(){
     else{x1=a.cx;y1=a.y+nH;x2=b.cx;y2=b.y-3;var dy=Math.max(36,Math.abs(y2-y1)/2);c1x=x1;c1y=y1+dy;c2x=x2;c2y=y2-dy;}
     var d="M"+x1.toFixed(1)+","+y1.toFixed(1)+" C"+c1x.toFixed(1)+","+c1y.toFixed(1)+" "+c2x.toFixed(1)+","+c2y.toFixed(1)+" "+x2.toFixed(1)+","+y2.toFixed(1);
     var on=r<0||e.paths.indexOf(r)>=0,cut=isCut(e);
-    var cls="edge"+(on?" on":" dim")+(cut?" choke":"")+(e.trust==="inferred"?" inferred":"")+(e.kind==="reachability"?" reach":"")+(S.edge===e.id?" sel":"");
+    var cls="edge"+(on?" on":" dim")+(cut?" choke":"")+(e.xi!=null&&XC[e.xi]?" wcut":"")+(e.trust==="inferred"?" inferred":"")+(e.kind==="reachability"?" reach":"")+(S.edge===e.id?" sel":"");
     var mk=cut?"m-choke":(on?"m-on":"m-dim");
     var t=fan[e.from]>1?0.64:0.5,u=1-t,k0=u*u*u,k1=3*u*u*t,k2=3*u*t*t,k3=t*t*t;
     var mx=k0*x1+k1*c1x+k2*c2x+k3*x2,my=k0*y1+k1*c1y+k2*c2y+k3*y2;
-    var lab=(cut?"✂ ":(e.kept?"🔒 ":""))+edgeLabel(e)+(e.trust==="inferred"?" (inferred)":"");
+    var lab=(e.xi!=null&&XC[e.xi]?"✕ ":(cut?"✂ ":(e.kept?"🔒 ":"")))+edgeLabel(e)+(e.trust==="inferred"?" (inferred)":"");
     var pw=Math.round(lab.length*6.5+18),ph=21;
     h+='<g class="'+cls+'" data-edge="'+e.id+'" tabindex="0" role="button" aria-label="'+esc(short(e.from)+" "+edgeLabel(e)+" "+short(e.to))+'">'
       +'<path class="line" d="'+d+'" marker-end="url(#'+mk+')"/><path class="flow" d="'+d+'"/><path class="hit" d="'+d+'"/>'
@@ -734,12 +884,14 @@ function renderInspector(){
       +'<div><span class="tag t-rel">'+esc(edgeLabel(e))+'</span><span class="tag">'+(e.trust==="inferred"?"inferred":"observed")+'</span>'
       +(e.choke?'<span class="tag t-choke">✂ choke point</span>':'')+'</div>'
       +'<p>'+explain(e)+'</p>'
-      +(e.trust==="inferred"?'<p class="muted small">Inferred: the data makes this step possible, but it needs an extra action (coercion or delegation abuse) to work.</p>':'')
+      +(e.trust==="inferred"?'<p class="muted small">Inferred: the data makes this step possible, but it needs an extra action (coercion, relay, delegation abuse or a GPO refresh) to work.</p>':'')
       +edgeCmd(e,e.command)
       +'<div class="lab">Remediation impact</div><p>'+(e.choke?'<b class="red">✂ Choke point.</b> Removing this relationship breaks every route shown.'
         :(e.alt?'Another route remains if only this is fixed.':'Not analysed for this run.'))
       +(e.kept?' 🔒 Marked as required (<code>--keep</code>): the remediation options leave it in place.':'')+'</p>'
       +'<div class="lab">Fix</div><p>'+esc(fixText(e))+'</p>'
+      +(e.xi!=null&&XG?'<div class="xactions"><button type="button" class="xtog'+(XC[e.xi]?' on':'')+'" data-xcut="'+e.xi+'">'+(XC[e.xi]?'↺ Restore':'✂ Cut (what-if)')+'</button>'
+        +'<span class="muted small">Exposure now: <b>'+fmt(xState().n)+'</b> users ('+pct(xState().n)+'%)</span></div>':'')
       +'<div class="lab">On routes</div><p>'+routeLinks(e.paths)+'</p>'+relatedFindings([e.from,e.to]);
     return;}
   if(n){
@@ -844,10 +996,16 @@ document.addEventListener("click",function(ev){
   if((b=t.closest("[data-edge-sel]"))){ev.preventDefault();S.edge=+b.getAttribute("data-edge-sel");S.node=null;renderPaths();
     var gb=$("gbox");if(gb&&gb.getBoundingClientRect().top<0)gb.scrollIntoView({behavior:"smooth",block:"start"});return;}
   if((b=t.closest("[data-find]"))){ev.preventDefault();openFinding(b.getAttribute("data-find"));return;}
+  if((b=t.closest("[data-xcut]"))){ev.preventDefault();xToggle(+b.getAttribute("data-xcut"));return;}
+  if((b=t.closest("[data-xall]"))){ev.preventDefault();(X.plan?X.plan.changes:[]).forEach(function(c){if(c.xi!=null)XC[c.xi]=true;});
+    xToggle(null);xRender();if($("v-paths").classList.contains("active")){drawGraph();renderInspector();}return;}
+  if((b=t.closest("[data-xreset]"))){ev.preventDefault();XC={};xRender();if($("v-paths").classList.contains("active")){drawGraph();renderInspector();}return;}
 });
 var _rt;window.addEventListener("resize",function(){clearTimeout(_rt);_rt=setTimeout(function(){
   if($("v-paths").classList.contains("active"))drawGraph();},120);});
+xInit();
 renderPaths();
+xRender();
 show(location.hash.slice(1)||D.default_view||"overview");
 </script>
 </body></html>"""

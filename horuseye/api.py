@@ -27,8 +27,8 @@ from horuseye.core.graph import AttackGraph
 from horuseye.core.knowledge import enrich, mitre_coverage
 from horuseye.core.path_scorer import PathScorer
 
-__all__ = ["detect", "attack_paths", "remediation_impact", "remediation_plans", "analyze",
-           "parse_sources"]
+__all__ = ["detect", "attack_paths", "remediation_impact", "remediation_plans", "exposure",
+           "analyze", "parse_sources"]
 
 
 def detect(domain_data: Dict) -> List[Dict]:
@@ -65,6 +65,14 @@ def remediation_plans(domain_data: Dict, owned: Optional[List[str]] = None,
     return AttackGraph(domain_data).remediation_plans(owned=owned, targets=targets, keep=keep)
 
 
+def exposure(domain_data: Dict, targets: Optional[List[str]] = None,
+             keep: Optional[List[str]] = None) -> Dict:
+    """Domain-wide exposure: how many enabled users can reach the targets
+    (Tier-0 by default), the fewest changes that bring it to zero (each with
+    the users left after it), and the biggest single fixes."""
+    return AttackGraph(domain_data).exposure(targets=targets, keep=keep)
+
+
 def analyze(domain_data: Dict, owned: Optional[List[str]] = None,
             targets: Optional[List[str]] = None, max_paths: int = 5,
             keep: Optional[List[str]] = None) -> Dict:
@@ -79,6 +87,7 @@ def analyze(domain_data: Dict, owned: Optional[List[str]] = None,
         "paths": attack_paths(domain_data, owned, targets, max_paths),
         "remediation_impact": remediation_impact(domain_data, owned, targets, max_paths, keep),
         "remediation_plans": remediation_plans(domain_data, owned, targets, keep),
+        "exposure": exposure(domain_data, targets, keep),
         "summary": {
             "total": len(findings),
             "by_severity": severities,

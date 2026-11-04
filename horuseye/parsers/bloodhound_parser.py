@@ -41,6 +41,7 @@ class BloodHoundParser:
         "distinguishedname": ["distinguishedname", "distinguishedName"],
         "trustedtoauth": ["trustedtoauth", "trustedToAuth"],
         "pwdneverexpires": ["pwdneverexpires", "passwordNeverExpires"],
+        "blocksinheritance": ["blocksinheritance", "blocksInheritance"],
     }
 
     def __init__(self, path: str):
@@ -60,6 +61,9 @@ class BloodHoundParser:
             "asrep_users": [],   # AS-REP roastable users
             "local_admins":       [],   # {principal, computer} — AdminTo edges
             "delegation_targets": [],   # {principal, target} — AllowedToDelegate
+            "rbcd":               [],   # {principal, computer} — AllowedToAct (RBCD)
+            "sid_history":        [],   # {principal, target} — HasSIDHistory
+            "containers":         [],   # domains / OUs / containers: GPO links + children
         }
 
         raw_objects: List[tuple] = []
@@ -79,6 +83,8 @@ class BloodHoundParser:
             name = self._prop(obj, "name") or oid
             if oid:
                 sid_to_name[oid] = name
+                # GPO links and child objects cite GUIDs in either case.
+                sid_to_name.setdefault(str(oid).upper(), name)
 
         # ── Pass 2: build result sets ────────────────────────────────────
         seen_names = set()
@@ -160,6 +166,14 @@ class BloodHoundParser:
                             "principal": name,
                             "target":    sid_to_name.get(tid, tid),
                         })
+                # SID history: the account also carries another principal's SID.
+                for ref in obj.get("HasSIDHistory") or []:
+                    tid = ref.get("ObjectIdentifier") if isinstance(ref, dict) else ref
+                    if tid:
+                        result["sid_history"].append({
+                            "principal": name,
+                            "target":    sid_to_name.get(tid, tid),
+                        })
 
             elif kind == "domains":
                 for trust in obj.get("Trusts", []) or []:
@@ -175,6 +189,45 @@ class BloodHoundParser:
                     "name":   name,
                     "domain": self._prop(obj, "domain") or props.get("domain", ""),
                 })
+
+            # ── Resource-based constrained delegation already configured ──
+            if kind == "computers":
+                for ref in obj.get("AllowedToAct") or []:
+                    pid = ref.get("ObjectIdentifier") if isinstance(ref, dict) else ref
+                    if pid:
+                        result["rbcd"].append({
+                            "principal": sid_to_name.get(pid, pid),
+                            "computer":  name,
+                        })
+
+            # ── Containment + GPO links (domains, OUs, containers) ───────
+            if kind in ("domains", "ous", "containers"):
+                links = []
+                for link in obj.get("Links") or []:
+                    if not isinstance(link, dict):
+                        continue
+                    gid = str(link.get("GUID") or link.get("Guid") or "")
+                    if gid:
+                        links.append({
+                            "gpo":      sid_to_name.get(gid, sid_to_name.get(gid.upper(), gid)),
+                            "enforced": bool(link.get("IsEnforced")),
+                        })
+                children = []
+                for child in obj.get("ChildObjects") or []:
+                    cid = child.get("ObjectIdentifier") if isinstance(child, dict) else child
+                    if cid:
+                        children.append({
+                            "name": sid_to_name.get(cid, sid_to_name.get(str(cid).upper(), cid)),
+                            "type": (child.get("ObjectType") if isinstance(child, dict) else "") or "",
+                        })
+                if links or children:
+                    result["containers"].append({
+                        "name":     name,
+                        "kind":     {"domains": "domain", "ous": "ou"}.get(kind, "container"),
+                        "blocks_inheritance": self._bool(self._prop(obj, "blocksinheritance")),
+                        "links":    links,
+                        "children": children,
+                    })
 
             # ── ACLs / ACEs (present on almost every object type) ─────────
             for ace in obj.get("Aces", []) or []:

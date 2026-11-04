@@ -28,7 +28,7 @@ def test_json_export_schema(tmp_path):
     out = tmp_path / "r.json"
     _reporter().export_json(str(out))
     d = json.loads(out.read_text(encoding="utf-8"))
-    assert d["schema"] == "horuseye.report/3"
+    assert d["schema"] == "horuseye.report/4"
     assert d["summary"]["by_severity"]["CRITICAL"] == 1
     assert d["summary"]["mitre"]                      # aggregated techniques
     assert len(d["attack_paths"]) == 1

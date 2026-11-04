@@ -64,19 +64,20 @@ def test_json_schema_is_versioned_and_has_documented_keys(tmp_path):
     out = tmp_path / "r.json"
     _reporter().export_json(str(out))
     d = json.loads(out.read_text(encoding="utf-8"))
-    assert d["schema"] == "horuseye.report/3"
+    assert d["schema"] == "horuseye.report/4"
     for key in ("tool", "schema", "generated", "domain", "summary",
-                "parse_report", "attack_paths", "findings"):
+                "parse_report", "attack_paths", "exposure", "findings"):
         assert key in d, key
 
 
 def test_old_schema_reports_still_load():
-    # diff.load_previous must read v1 (bare list / no schema) and v2/v3.
+    # diff.load_previous must read v1 (bare list / no schema) and v2/v3/v4.
     from horuseye.core.diff import load_previous
     import tempfile, os
     for payload in ([{"id": "x", "type": "T", "affected": "A"}],
                     {"schema": "horuseye.report/2", "findings": [{"id": "x"}]},
-                    {"schema": "horuseye.report/3", "findings": [{"id": "x"}, {"id": "y"}]}):
+                    {"schema": "horuseye.report/3", "findings": [{"id": "x"}, {"id": "y"}]},
+                    {"schema": "horuseye.report/4", "findings": [{"id": "x"}], "exposure": None}):
         fd, path = tempfile.mkstemp(suffix=".json")
         os.write(fd, json.dumps(payload).encode()); os.close(fd)
         try:

