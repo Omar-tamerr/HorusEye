@@ -51,8 +51,8 @@ versioning; see [CHANGELOG.md](CHANGELOG.md).
 
 | Version | Supported |
 |---------|-----------|
-| 2.3.x   | ✅        |
-| < 2.3   | ❌ (upgrade) |
+| 2.4.x   | ✅        |
+| < 2.4   | ❌ (upgrade) |
 
 ## Supported environments
 

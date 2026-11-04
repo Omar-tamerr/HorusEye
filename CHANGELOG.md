@@ -6,7 +6,77 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-11-04
+
+An exposure release: HorusEye now measures how many users can reach Tier-0,
+finds the fewest changes that take that to zero, lets you try fixes live in
+the explorer, and fails CI when a change reopens a route. The graph gains the
+routes real domains use most: ADCS, RBCD, SID history, LAPS/gMSA readers and
+GPOs.
+
+### Added
+- **Domain exposure** (`AttackGraph.exposure()`, `api.exposure()`, JSON
+  `exposure`, CLI, HTML and Markdown): enabled users with a route to Tier-0
+  (or `--target`), counting routes open to every user through broad groups;
+  the **fewest changes to reach 0%** (a minimum cut over every exposed user at
+  once, closest to the targets, ordered greedily with the users left after
+  each change, `--keep` respected); and the **biggest single fixes** (exact,
+  found through shortest-route-tree bounds). Every report states what the
+  number does and doesn't model. Checked against brute force on random domains.
+- **Live what-if in the explorer.** The Overview opens on the exposure card;
+  ✂ Apply a change, or ✂ Cut any relationship from the attack-path inspector,
+  and the page re-runs the reverse reachability search in the browser. Cut
+  relationships show on the graph. The embedded graph is only what can reach a
+  target, and tests check the page's numbers against the engine's.
+- **Route and exposure drift.** `--diff` now compares attack routes (by their
+  steps, so v2.3 reports still compare; different footholds aren't compared)
+  and exposure (who gained a route, who lost one). `--fail-on` is repeatable
+  and adds `new-route` and `exposure-up`, which exit **4 (DRIFT)**; both need
+  `--diff`. The JSON gains a `retest` block.
+- **New attack-path relationships:**
+  - **ADCS** from Certipy: ESC1, ESC2, ESC3, ESC4, ESC6, ESC7, ESC8, ESC11 and
+    ESC15 become routes to domain control, from the principals Certipy names
+    (else the template's enrollment or control rights; any domain user for the
+    relay findings ESC8/ESC11). Tier-0 enrollees and disabled templates are
+    skipped. Each step has the certipy commands and the fix for that ESC.
+  - **Resource-based delegation**: configured (`AllowedToAct`, inferred), and
+    writable through `AddAllowedToAct` / `WriteAccountRestrictions`.
+  - **SID history** (`HasSIDHistory`), **LAPS** (`ReadLAPSPassword`) and
+    **gMSA** (`ReadGMSAPassword`) password readers.
+  - **GPOs applied through OU links** (`GPLink`, inferred): a GPO reaches every
+    user and computer below the OU or domain it's linked to, except under an OU
+    that blocks inheritance, unless the link is enforced. GPO links are never
+    proposed as the fix; who can edit the GPO is.
+- `examples/karnak-lab`: a synthetic 1,245-user domain (SharpHound + Certipy)
+  where every user can reach Domain Admin and four changes take it to zero;
+  rebuilt deterministically by `scripts/make_karnak_lab.py`. A second live
+  demo, `docs/exposure-demo.html`; `scripts/build_demo.py` builds both.
+- Explorer: icons, labels, explanations and fixes for the new relationship
+  types; fix text now comes from the engine.
+- Validation commands by target type for ACL takeover: RBCD for computers,
+  `net rpc group addmem` for groups, pyGPOAbuse for GPOs, targeted Kerberoast
+  for `WriteSPN`.
+
 ### Changed
+- **A foothold holds what every user can do.** With `--owned`, routes open to
+  Domain Users / Authenticated Users / Everyone are followed too, through an
+  explicit membership step that is never proposed as a fix. Before, a plan
+  could claim to break every route while such a route remained.
+- Route search tries observed relationships before inferred ones, so between
+  two routes of the same length the better-evidenced one is shown first.
+- JSON schema `horuseye.report/4` (adds `exposure`, `retest`; steps gain
+  `fix`). `diff.load_previous` still reads v1–v3.
+- With `--json`, `--report`, `--markdown` or `--diff`, attack routes are
+  computed even without `--graph`, so reports and retests always have them.
+
+### Fixed
+- **Real Certipy exports produced no ADCS findings.** The parser read
+  `Vulnerabilities` and top-level `Enrollment Rights`; Certipy writes
+  `[!] Vulnerabilities` and nests rights under `Permissions`. It also treated
+  `"Web Enrollment": "Disabled"` as enabled and ignored CA-level findings
+  (ESC6/7/8/11). All fixed, and the older flat layout still parses.
+
+### Changed (from the previous `main`)
 - **Redesigned attack-path view in the explorer** (`--explorer`): a route picker,
   node-type icons and FOOTHOLD/TARGET markers, readable relationship labels,
   animated highlighting of the selected route, a step-by-step walkthrough with
@@ -21,7 +91,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The CLI summary line and findings table now say "findings" instead of
   "paths"/"Attack Path(s)" — they count findings, not attack paths.
 
-### Fixed
+### Fixed (from the previous `main`)
 - **Full analysis crashed on Python 3.8–3.11** with "f-string expression part
   cannot include a backslash" (`features/creds_manager.py`): syntax only Python
   3.12 accepts, in a module the tests never imported. New guards: every module is
@@ -33,7 +103,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   single fix. It now removes exactly one relationship (parallel rights on the
   same object stay distinct), with regression tests.
 
-### Added
+### Added (from the previous `main`)
 - **Remediation options that account for the business.** After the attack
   paths, HorusEye compares alternative fixes: *Fewest changes*, *Keep group
   memberships* (narrow the groups' permissions instead of removing anyone) and
@@ -250,6 +320,7 @@ and restructures the project into a proper installable package.
   hash-cracking engine, password sprayer, wordlist generator, lateral-movement
   mapper, attack timeline, team collaboration, and HTML/JSON reporting.
 
+[2.4.0]: https://github.com/Omar-tamerr/HorusEye/releases/tag/v2.4.0
 [2.3.0]: https://github.com/Omar-tamerr/HorusEye/releases/tag/v2.3.0
 [2.2.0]: https://github.com/Omar-tamerr/HorusEye/releases/tag/v2.2.0
 [2.1.0]: https://github.com/Omar-tamerr/HorusEye/releases/tag/v2.1.0

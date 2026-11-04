@@ -48,9 +48,9 @@
     </div>
     <h1>Horus<span class="r">Eye</span></h1>
     <p class="tag">See the path. Know the fix.</p>
-    <p class="sub">An AI-assisted Active Directory attack-path platform. It ingests BloodHound, Certipy, ldapdomaindump and NetExec output, then ranks every path by <b>exploitability</b>, proves it with <b>evidence</b>, and hands red teams the command and blue teams the remediation — in one portable, offline report.</p>
+    <p class="sub">An Active Directory attack-path platform. It ingests BloodHound, Certipy, ldapdomaindump and NetExec output, measures <b>how many of your users can reach Domain Admin</b>, finds the <b>fewest fixes that take it to zero</b>, proves every step with <b>evidence</b>, and hands red teams the command and blue teams the remediation — in one portable, offline report.</p>
     <div class="cta">
-      <a class="btn primary" href="demo.html">▶ Try the live demo</a>
+      <a class="btn primary" href="exposure-demo.html">▶ Try the live demo</a>
       <a class="btn ghost" href="#install">Get started</a>
       <a class="btn ghost" href="https://github.com/Omar-tamerr/HorusEye" target="_blank" rel="noopener">View on GitHub</a>
     </div>
@@ -175,9 +175,10 @@
   <div class="wrap">
     <div class="kicker">See it live</div>
     <h2>The explorer, running in your browser</h2>
-    <p class="lead">A real HorusEye report on a synthetic domain: two attack routes to domain control, the single fix that breaks both, and every finding with its evidence. No install required.</p>
-    <div class="frame"><iframe src="demo.html" title="HorusEye Explorer live demo" loading="lazy"></iframe></div>
-    <p style="margin-top:14px"><a class="btn ghost" href="demo.html">Open the demo full-screen ↗</a></p>
+    <p class="lead">A real HorusEye report on a synthetic 1,245-user domain where every user can reach Domain Admin. Press ✂ Apply on the four fixes and watch exposure fall to zero, then open Attack Paths to see the routes. No install required.</p>
+    <div class="frame"><iframe src="exposure-demo.html" title="HorusEye Explorer live demo: domain exposure" loading="lazy"></iframe></div>
+    <p style="margin-top:14px"><a class="btn ghost" href="exposure-demo.html">Open the demo full-screen ↗</a>
+      <a class="btn ghost" href="demo.html">The small attack-path demo (ACME.LAB) ↗</a></p>
   </div>
 </section>
 
