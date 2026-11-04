@@ -27,6 +27,9 @@ def parse_all_sources(args, console, animated_task):
         "asrep_users":  [],   # AS-REP roastable users
         "local_admins": [],   # {principal, computer}
         "delegation_targets": [],  # {principal, target}
+        "rbcd":         [],   # {principal, computer} — RBCD already configured
+        "sid_history":  [],   # {principal, target}
+        "containers":   [],   # domains / OUs / containers with GPO links
         "raw_sources":  [],
     }
 
@@ -37,7 +40,8 @@ def parse_all_sources(args, console, animated_task):
         animated_task("Parsing BloodHound", ["Users", "Groups", "ACLs", "Sessions", "Graph"], "cyan")
         d = BloodHoundParser(args.bloodhound).parse()
         for k in ["users", "groups", "computers", "acls", "sessions", "gpos", "trusts",
-                  "local_admins", "delegation_targets"]:
+                  "local_admins", "delegation_targets", "rbcd", "sid_history",
+                  "containers"]:
             domain_data[k].extend(d.get(k, []))
         domain_data["spns"].extend(d.get("spns", []))
         domain_data["asrep_users"].extend(d.get("asrep_users", []))

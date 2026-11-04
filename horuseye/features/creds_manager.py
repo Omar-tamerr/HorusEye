@@ -168,7 +168,7 @@ class CredsManager:
         with open(self.creds_json, "w", encoding="utf-8") as f:
             json.dump({
                 "generated":   datetime.now().isoformat(),
-                "tool":        "HorusEye v2.3 🇪🇬",
+                "tool":        "HorusEye v2.4 🇪🇬",
                 "author":      "Omar Tamer",
                 "count":       len(self._creds),
                 "credentials": self._creds

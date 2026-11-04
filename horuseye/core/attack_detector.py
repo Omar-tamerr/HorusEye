@@ -522,7 +522,8 @@ class AttackDetector:
         adcs = self.data.get("adcs", {}) or {}
         for vuln in adcs.get("vulnerabilities", []) or []:
             esc = (vuln.get("esc", "") or "").upper()
-            template = vuln.get("template", "")
+            # Template findings name the template; CA findings (ESC6/7/8/11) the CA.
+            template = vuln.get("template", "") or vuln.get("ca", "")
             sev = vuln.get("severity") or ("CRITICAL" if esc in
                    ("ESC1", "ESC3", "ESC4", "ESC6", "ESC8") else "HIGH")
             out.append({

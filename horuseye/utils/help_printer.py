@@ -123,7 +123,7 @@ def show_help(topic=None, no_banner=False):
     section("📄 OUTPUT & AUTOMATION", "green")
     flag("--report FILE", "HTML report (dark theme)")
     flag("--markdown FILE", "Markdown report (Mermaid path diagrams)")
-    flag("--json FILE", "JSON report (schema horuseye.report/3)")
+    flag("--json FILE", "JSON report (schema horuseye.report/4)")
     flag("--diff OLD.json", "Retest: new / fixed / unchanged vs a prior run")
     flag("--fail-on LEVEL", "Exit non-zero if a finding ≥ LEVEL (CI gate)")
     flag("--check-deps", "Report which external tools are on PATH")

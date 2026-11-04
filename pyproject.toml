@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "horuseye"
-version = "2.3.0"
-description = "AI-assisted Active Directory attack-path analysis platform"
+version = "2.4.0"
+description = "Active Directory attack-path, exposure and remediation analysis"
 readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "MIT" }

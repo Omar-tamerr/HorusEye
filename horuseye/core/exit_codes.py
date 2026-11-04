@@ -11,6 +11,9 @@ run could not be trusted".
     3  INCOMPLETE  --fail-on set but the assessment was too thin to trust
                    (a source was given yet no usable objects were parsed) —
                    a clean result here would be a false negative
+    4  DRIFT       --fail-on new-route / exposure-up set and, against the
+                   --diff baseline, a new attack route appeared or more users
+                   can reach Tier-0 (a fix didn't hold, or a change reopened one)
 
 Exit codes are only emitted in automation-relevant paths; an ordinary
 interactive run with no --fail-on returns 0.
@@ -19,6 +22,7 @@ OK = 0
 ERROR = 1
 FINDINGS = 2
 INCOMPLETE = 3
+DRIFT = 4
 
 
 def assessment_is_incomplete(domain_data: dict) -> bool:

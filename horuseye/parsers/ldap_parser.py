@@ -255,11 +255,82 @@ class CertipyParser:
     """
     Parses `certipy find -u user@corp.local -p pass -dc-ip 10.10.10.5 -json`
     output (the file ending in _Certipy.json).
+
+    Reads the layout Certipy actually writes (``[!] Vulnerabilities``, nested
+    ``Permissions``, ``"Enabled"``/``"Disabled"`` strings, v5's per-protocol web
+    enrollment) and the flat layout older HorusEye fixtures used. Each
+    vulnerability keeps who can abuse it, so the attack-path graph can turn it
+    into a route: ``principals`` are the accounts Certipy names in the finding,
+    ``enrollment_rights`` / ``control_rights`` the template's permissions.
     """
+
+    CRITICAL = ("ESC1", "ESC3", "ESC4", "ESC6", "ESC8")
 
     def __init__(self, filepath: str):
         self.filepath = filepath
 
+    # ── helpers ───────────────────────────────────────────────────────────
+    @staticmethod
+    def _enabled(value) -> bool:
+        """True / "Enabled" / {"http": {"enabled": true}} → True; "Disabled" → False."""
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in ("enabled", "true", "yes", "1")
+        if isinstance(value, dict):
+            return any(CertipyParser._enabled(v) for v in value.values())
+        if isinstance(value, (list, tuple)):
+            return any(CertipyParser._enabled(v) for v in value)
+        return bool(value)
+
+    @staticmethod
+    def _vulns(obj: Dict) -> Dict:
+        for k, v in obj.items():
+            if "vulnerabilit" in str(k).lower() and isinstance(v, dict):
+                return v
+        return {}
+
+    @staticmethod
+    def _names(value) -> List[str]:
+        if isinstance(value, str):
+            return [value] if value.strip() else []
+        if isinstance(value, (list, tuple)):
+            return [str(x) for x in value if isinstance(x, str) and x.strip()]
+        return []
+
+    @classmethod
+    def _enrollment_rights(cls, tpl: Dict) -> List[str]:
+        if tpl.get("Enrollment Rights"):
+            return cls._names(tpl["Enrollment Rights"])
+        perms = tpl.get("Permissions") or {}
+        ep = perms.get("Enrollment Permissions") or {}
+        return cls._names(ep.get("Enrollment Rights"))
+
+    @classmethod
+    def _control_rights(cls, obj: Dict) -> List[str]:
+        """Principals that can rewrite the object (template or CA)."""
+        perms = obj.get("Permissions") or {}
+        out: List[str] = []
+        ocp = perms.get("Object Control Permissions") or {}
+        for k, v in ocp.items():
+            if str(k).lower() != "owner":
+                out += cls._names(v)
+        ar = perms.get("Access Rights") or {}
+        for k, v in ar.items():
+            if str(k).replace(" ", "").lower() in ("manageca", "managecertificates"):
+                out += cls._names(v)
+        return sorted(set(out))
+
+    @staticmethod
+    def _quoted(text: str) -> List[str]:
+        """Certipy names who can abuse a finding in quotes:
+        ``'CORP.LOCAL\\Domain Users' can enroll, ...``"""
+        return sorted({m.replace("\\\\", "\\") for m in re.findall(r"'([^']+)'", text or "")})
+
+    def _sev(self, esc: str) -> str:
+        return "CRITICAL" if esc.upper() in self.CRITICAL else "HIGH"
+
+    # ── entry point ───────────────────────────────────────────────────────
     def parse(self) -> Dict:
         result = {
             "cas":             [],
@@ -270,38 +341,73 @@ class CertipyParser:
         try:
             with open(self.filepath, "r", encoding="utf-8", errors="ignore") as f:
                 raw = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            return result
+        if not isinstance(raw, dict):
             return result
 
-        cas = raw.get("Certificate Authorities", {}) or {}
-        for _, ca in cas.items():
-            result["cas"].append({
-                "name":    ca.get("CA Name", ""),
-                "dns":     ca.get("DNS Name", ""),
-                "web_enrollment": bool(ca.get("Web Enrollment")),
-            })
+        def rows(block):
+            if isinstance(block, dict):
+                return [v for v in block.values() if isinstance(v, dict)]
+            if isinstance(block, list):
+                return [v for v in block if isinstance(v, dict)]
+            return []
 
-        templates = raw.get("Certificate Templates", {}) or {}
-        for _, tpl in templates.items():
+        for ca in rows(raw.get("Certificate Authorities")):
+            name = ca.get("CA Name", "")
+            result["cas"].append({
+                "name":    name,
+                "dns":     ca.get("DNS Name", ""),
+                "web_enrollment": self._enabled(ca.get("Web Enrollment")),
+                "user_specified_san": self._enabled(ca.get("User Specified SAN")),
+                "control_rights": self._control_rights(ca),
+            })
+            for esc, description in self._vulns(ca).items():
+                desc = str(description or "")
+                result["vulnerabilities"].append({
+                    "esc":         str(esc).upper(),
+                    "template":    "",
+                    "ca":          name,
+                    "cas":         [name] if name else [],
+                    "description": desc,
+                    "severity":    self._sev(str(esc)),
+                    "principals":  self._quoted(desc),
+                    "enrollment_rights": [],
+                    "control_rights": self._control_rights(ca),
+                })
+
+        for tpl in rows(raw.get("Certificate Templates")):
             name  = tpl.get("Template Name", tpl.get("Display Name", ""))
-            vulns = tpl.get("Vulnerabilities", {}) or {}
+            vulns = self._vulns(tpl)
+            enabled = self._enabled(tpl.get("Enabled", True))
+            enroll = self._enrollment_rights(tpl)
+            control = self._control_rights(tpl)
+            cas = self._names(tpl.get("Certificate Authorities"))
 
             result["templates"].append({
                 "name":                    name,
-                "enabled":                 bool(tpl.get("Enabled")),
-                "client_authentication":   bool(tpl.get("Client Authentication")),
-                "enrollee_supplies_subject": bool(tpl.get("Enrollee Supplies Subject")),
-                "enrollment_rights":       tpl.get("Enrollment Rights", []),
+                "enabled":                 enabled,
+                "client_authentication":   self._enabled(tpl.get("Client Authentication")),
+                "enrollee_supplies_subject": self._enabled(tpl.get("Enrollee Supplies Subject")),
+                "enrollment_rights":       enroll,
+                "control_rights":          control,
+                "cas":                     cas,
                 "vulnerable":              bool(vulns),
             })
 
             for esc, description in vulns.items():
+                desc = str(description or "")
                 result["vulnerabilities"].append({
-                    "esc":         esc,
+                    "esc":         str(esc).upper(),
                     "template":    name,
-                    "description": description,
-                    "severity":    "CRITICAL" if esc.upper() in
-                                   ("ESC1", "ESC3", "ESC4", "ESC6", "ESC8") else "HIGH",
+                    "ca":          cas[0] if cas else "",
+                    "cas":         cas,
+                    "enabled":     enabled,
+                    "description": desc,
+                    "severity":    self._sev(str(esc)),
+                    "principals":  self._quoted(desc),
+                    "enrollment_rights": enroll,
+                    "control_rights": control,
                 })
 
         return result
