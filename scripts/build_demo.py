@@ -22,7 +22,15 @@ sys.path.insert(0, str(ROOT))
 
 from horuseye import api                                   # noqa: E402
 from horuseye.core.graph import AttackGraph                # noqa: E402
+from horuseye.core import status                          # noqa: E402
 from horuseye.reports.explorer import build_explorer       # noqa: E402
+
+# Demo-only status entries (synthetic), applied to the Quick Wins in order.
+DEMO_STATUS = [
+    {"status": "in_progress", "notes": "Owner: identity team. Change request opened; removing the ACE "
+                                       "in the next maintenance window.", "changed": "2026-11-06"},
+    {"status": "fixed", "notes": "Removed. Re-run HorusEye with --diff to verify.", "changed": "2026-11-06"},
+]
 
 SITE = "https://omar-tamerr.github.io/HorusEye/"
 BASE = {
@@ -58,13 +66,17 @@ def build(spec, when: str) -> str:
     impact = graph.remediation_impact(owned=owned, max_paths=5)
     plans = graph.remediation_plans(owned=owned)
     exposure = AttackGraph(data).exposure()
+    wins = api.triage(findings, data, exposure_result=exposure)
+    # Synthetic tracker activity, so visitors see the status tracker in use.
+    status.merge(findings, {f["id"]: entry for f, entry in zip(wins, DEMO_STATUS)})
     page = build_explorer(findings, paths, impact, data, when, demo=spec["demo"],
                           plans=plans, exposure=exposure)
     out = ROOT / "docs" / spec["out"]
     out.write_text(page, encoding="utf-8")
     print(f"wrote {out.relative_to(ROOT)} ({len(page):,} bytes): {len(findings)} findings, "
           f"{len(paths)} routes, {len(plans)} remediation option(s), exposure "
-          f"{exposure['users_exposed']:,}/{exposure['users_total']:,} users")
+          f"{exposure['users_exposed']:,}/{exposure['users_total']:,} users, "
+          f"{len(wins)} Quick Win(s)")
     return page
 
 

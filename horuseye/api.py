@@ -28,7 +28,7 @@ from horuseye.core.knowledge import enrich, mitre_coverage
 from horuseye.core.path_scorer import PathScorer
 
 __all__ = ["detect", "attack_paths", "remediation_impact", "remediation_plans", "exposure",
-           "analyze", "parse_sources"]
+           "triage", "analyze", "parse_sources"]
 
 
 def detect(domain_data: Dict) -> List[Dict]:
@@ -73,11 +73,24 @@ def exposure(domain_data: Dict, targets: Optional[List[str]] = None,
     return AttackGraph(domain_data).exposure(targets=targets, keep=keep)
 
 
+def triage(findings: List[Dict], domain_data: Dict, targets: Optional[List[str]] = None,
+           keep: Optional[List[str]] = None, exposure_result: Optional[Dict] = None) -> List[Dict]:
+    """Add effort, impact, "why critical", fix options, source and the Quick
+    Win flag to each finding (in place; severity is never changed). Returns
+    the Quick Wins, best first."""
+    from horuseye.core.triage import triage as _triage
+    g = AttackGraph(domain_data)
+    x = exposure_result if exposure_result is not None else g.exposure(targets=targets, keep=keep)
+    return _triage(findings, domain_data, g, x, targets=targets, keep=keep)
+
+
 def analyze(domain_data: Dict, owned: Optional[List[str]] = None,
             targets: Optional[List[str]] = None, max_paths: int = 5,
             keep: Optional[List[str]] = None) -> Dict:
     """One call: findings + ranked paths + a summary (counts + ATT&CK coverage)."""
     findings = detect(domain_data)
+    x = exposure(domain_data, targets, keep)
+    wins = triage(findings, domain_data, targets, keep, exposure_result=x)
     severities = {}
     for f in findings:
         s = (f.get("severity") or "INFO").upper()
@@ -87,7 +100,8 @@ def analyze(domain_data: Dict, owned: Optional[List[str]] = None,
         "paths": attack_paths(domain_data, owned, targets, max_paths),
         "remediation_impact": remediation_impact(domain_data, owned, targets, max_paths, keep),
         "remediation_plans": remediation_plans(domain_data, owned, targets, keep),
-        "exposure": exposure(domain_data, targets, keep),
+        "exposure": x,
+        "quick_wins": [f["id"] for f in wins],
         "summary": {
             "total": len(findings),
             "by_severity": severities,

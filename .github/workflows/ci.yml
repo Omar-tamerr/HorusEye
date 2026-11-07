@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: ["3.8", "3.11", "3.12"]
+        python-version: ["3.8", "3.11", "3.12", "3.13"]
         exclude:
           # Trim the matrix: one Python on Windows is enough to guard the
           # console-encoding regression; Linux covers the version spread.
@@ -22,6 +22,8 @@ jobs:
             python-version: "3.8"
           - os: windows-latest
             python-version: "3.11"
+          - os: windows-latest
+            python-version: "3.13"
 
     steps:
       - uses: actions/checkout@v4
@@ -49,5 +51,5 @@ jobs:
         run: |
           horuseye --bloodhound examples/acme-lab --domain ACME.LAB --dc 10.10.0.5 --graph --owned JDOE@ACME.LAB --json smoke.json
           horuseye --bloodhound examples/acme-lab --domain ACME.LAB --dc 10.10.0.5 --graph --webapps examples/acme-lab-webapp/portal-confirmed.json
-          horuseye --bloodhound examples/karnak-lab --certipy examples/karnak-lab/adcs/karnak_Certipy.json --domain KARNAK.LAB --dc 10.20.0.10 --explorer karnak.html --json karnak.json
+          horuseye --bloodhound examples/karnak-lab --certipy examples/karnak-lab/adcs/karnak_Certipy.json --domain KARNAK.LAB --dc 10.20.0.10 --explorer karnak.html --json karnak.json --csv karnak.csv
           horuseye --bloodhound examples/karnak-lab --certipy examples/karnak-lab/adcs/karnak_Certipy.json --domain KARNAK.LAB --dc 10.20.0.10 --diff karnak.json --fail-on exposure-up --fail-on new-route

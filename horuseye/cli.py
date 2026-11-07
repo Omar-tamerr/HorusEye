@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-HorusEye v2.4 — AI-Powered Active Directory Attack Platform
+HorusEye v2.5: AI-Powered Active Directory Attack Platform
 Author: Omar Tamer 🇪🇬
 """
 
@@ -36,7 +36,7 @@ BANNER = r"""
  ██╔══██║██║   ██║██╔══██╗██║   ██║╚════██║
  ██║  ██║╚██████╔╝██║  ██║╚██████╔╝███████║
  ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝[/bold red][bold white]
- ███████╗██╗   ██╗███████╗  [bold red]v2.4[/bold red]
+ ███████╗██╗   ██╗███████╗  [bold red]v2.5[/bold red]
  ██╔════╝╚██╗ ██╔╝██╔════╝
  █████╗   ╚████╔╝ █████╗
  ██╔══╝    ╚██╔╝  ██╔══╝
@@ -46,7 +46,7 @@ BANNER = r"""
 EYE = r"""[bold yellow]
        .^.
       /|||\ 
-     / ||| \     [bold white]𓂀  HorusEye v2.4  𓂀[/bold white]
+     / ||| \     [bold white]𓂀  HorusEye v2.5  𓂀[/bold white]
     /  𓂀  \    [bold red]🇪🇬 Omar Tamer — Egypt[/bold red]
    /________\\[/bold yellow]"""
 
@@ -89,11 +89,11 @@ def main():
     print_banner()
 
     parser = argparse.ArgumentParser(
-        description="HorusEye v2.4 𓂀 — AI-Powered AD Attack Platform by Omar Tamer 🇪🇬",
+        description="HorusEye v2.5 𓂀: AI-Powered AD Attack Platform by Omar Tamer 🇪🇬",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  𓂀  HorusEye v2.4 — Usage Examples
+  𓂀  HorusEye v2.5: Usage Examples
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   [Full Interactive Mode]
@@ -212,6 +212,8 @@ def main():
     g8.add_argument("--ai-redact",   action="store_true", help="Mask domain/principal names before sending to the API")
     g8.add_argument("--report",      metavar="FILE")
     g8.add_argument("--json",        metavar="FILE")
+    g8.add_argument("--csv",         metavar="FILE", help="Spreadsheet export: one row per finding (severity, effort, Quick Win, fix, status, notes)")
+    g8.add_argument("--status",      metavar="FILE", help="Remediation status file (horuseye-status.json from the explorer) to merge into every output")
     g8.add_argument("--markdown",    metavar="FILE", help="Export Markdown report with Mermaid attack-path diagrams")
     g8.add_argument("--explorer",    metavar="FILE", help="Export the interactive offline HTML explorer (dashboard + graph + findings)")
     g8.add_argument("--diff",        metavar="OLD.json", help="Compare against a previous JSON report (retest: new / fixed / unchanged)")
@@ -416,6 +418,48 @@ def _bar(pct: float, width: int = 30) -> str:
 
 def _users(n: int) -> str:
     return f"{n:,} user{'s' if n != 1 else ''}"
+
+
+def render_quick_wins(wins):
+    """Quick Wins first: Critical or High severity that is a Low-effort fix,
+    best (most users cut off from Tier-0) first."""
+    console.print(Rule("[bold green][ 𓂀 QUICK WINS: critical and easy to fix ][/bold green]"))
+    if not wins:
+        console.print("  [dim]No Critical or High finding is a Low-effort fix. Start with the "
+                      "exposure plan and the highest-severity findings below.[/dim]\n")
+        return
+    for f in wins[:10]:
+        imp = f.get("impact") or {}
+        gain = (f"cuts {imp['users_cut_off']:,} users off" if imp.get("users_cut_off")
+                else f"on routes for {imp['users_through']:,} users" if imp.get("users_through")
+                else "")
+        console.print(f"  [bold green]{f['quick_win_rank']}.[/bold green] [bold]{escape(f.get('title', ''))}[/bold]"
+                      f"  [dim]{escape(f.get('severity', ''))} · effort Low"
+                      f"{' · ' + gain if gain else ''}[/dim]")
+        console.print(f"     [dim]Why critical:[/dim] {escape(f.get('why_critical', ''))}")
+        console.print(f"     [dim]Why easy:[/dim] {escape(f.get('effort_reason', ''))}")
+        fix = (f.get("fix_options") or [{}])[0].get("fix") or (f.get("remediation") or [""])[0]
+        if fix:
+            console.print(f"     [dim]Do:[/dim] {escape(fix)}")
+    if len(wins) > 10:
+        console.print(f"  [dim]+{len(wins) - 10} more Quick Wins in the reports.[/dim]")
+    console.print()
+
+
+def render_status(summary, path):
+    from horuseye.core.status import LABELS
+    console.print(Rule("[bold cyan][ 𓂀 REMEDIATION STATUS ][/bold cyan]"))
+    counts = summary["counts"]
+    console.print("  " + "  ·  ".join(f"{LABELS[k]}: [bold]{v}[/bold]" for k, v in counts.items())
+                  + f"  [dim](from {escape(str(path))})[/dim]")
+    for fid in summary["marked_fixed_still_found"]:
+        console.print(f"  [bold red]✖ marked fixed but still found:[/bold red] {fid}")
+    for v in summary["verified_fixed"]:
+        console.print(f"  [bold green]✔ verified fixed:[/bold green] {escape(v['title'])} [dim]({v['id']})[/dim]")
+    if summary["not_in_this_run"]:
+        console.print(f"  [dim]{len(summary['not_in_this_run'])} tracked finding(s) are not in this run "
+                      f"(use --diff against the baseline to verify them).[/dim]")
+    console.print()
 
 
 def render_exposure(x):
@@ -632,8 +676,21 @@ def run_main_analysis(args, config, claude_key):
     # ── Broadcast to team ─────────────────────────────────────────────────
     team.broadcast({"event": "findings", "count": len(scored), "critical": crit})
 
+    # Domain exposure (every user, not one foothold) and remediation triage:
+    # effort, impact and Quick Wins for every finding. Cheap, so always on.
+    from horuseye.core.graph import AttackGraph
+    from horuseye.core.triage import triage
+    owned = [o.strip() for o in (args.owned or "").split(",") if o.strip()] or None
+    targets = [t.strip() for t in (getattr(args, "target", "") or "").split(",") if t.strip()] or None
+    keep = _keep_list(args)
+    g = AttackGraph(domain_data)
+    exposure = g.exposure(targets=targets, keep=keep)
+    wins = triage(scored, domain_data, g, exposure, targets=targets, keep=keep)
+
     # ── Print results ────────────────────────────────────────────────────
     reporter = ReportGenerator(scored, domain_data, generated_at=_fixed_timestamp())
+    reporter.quick_wins = wins
+    render_quick_wins(wins)
     reporter.print_cli_report(args.severity)
 
     # ── Timeline ─────────────────────────────────────────────────────────
@@ -645,13 +702,7 @@ def run_main_analysis(args, config, claude_key):
     if args.graph:
         graph_paths = render_attack_paths(domain_data, args)
         reporter.attack_paths = graph_paths
-    # Domain exposure: every user, not one foothold. Cheap, so always on.
-    from horuseye.core.graph import AttackGraph
-    owned = [o.strip() for o in (args.owned or "").split(",") if o.strip()] or None
-    targets = [t.strip() for t in (getattr(args, "target", "") or "").split(",") if t.strip()] or None
-    keep = _keep_list(args)
-    g = AttackGraph(domain_data)
-    reporter.exposure = g.exposure(targets=targets, keep=keep)
+    reporter.exposure = exposure
     reporter.keep = keep
     render_exposure(reporter.exposure)
 
@@ -717,6 +768,13 @@ def run_main_analysis(args, config, claude_key):
     retest = compute_retest(args.diff, scored, reporter) if args.diff else None
     reporter.retest = retest
 
+    # ── Remediation status (shared horuseye-status.json) ──────────────────
+    from horuseye.core import status as status_mod
+    entries = status_mod.load(args.status) if getattr(args, "status", None) else {}
+    reporter.status_summary = status_mod.merge(scored, entries, retest)
+    if getattr(args, "status", None):
+        render_status(reporter.status_summary, args.status)
+
     # ── Reports ───────────────────────────────────────────────────────────
     if args.report:
         animated_task("Generating HTML report", ["Building", "Embedding", "Finalizing"], "green")
@@ -728,6 +786,9 @@ def run_main_analysis(args, config, claude_key):
     if args.markdown:
         reporter.export_markdown(args.markdown)
         console.print(f"[green]📝 Markdown → [cyan]{args.markdown}[/cyan][/green]")
+    if getattr(args, "csv", None):
+        reporter.export_csv(args.csv)
+        console.print(f"[green]📊 CSV → [cyan]{args.csv}[/cyan][/green]")
     if getattr(args, "explorer", None):
         animated_task("Building interactive explorer", ["Graph", "Findings", "Embedding"], "green")
         reporter.export_explorer(args.explorer)

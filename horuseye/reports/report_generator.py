@@ -25,7 +25,7 @@ SEV_COLOR = {"CRITICAL": "bold red", "HIGH": "bold yellow", "MEDIUM": "yellow",
 SEV_HEX = {"CRITICAL": "#ff4444", "HIGH": "#ff8800", "MEDIUM": "#ffcc00",
            "LOW": "#88cc00", "INFO": "#888888"}
 SEV_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
-TOOL = "HorusEye v2.4"
+TOOL = "HorusEye v2.5"
 
 
 class ReportGenerator:
@@ -40,6 +40,8 @@ class ReportGenerator:
         self.conditional_paths = []   # routes needing an assumed / not-assessed step
         self.exposure = None          # domain-wide: who can reach Tier-0, and the fix
         self.retest = None            # comparison with a --diff baseline, when given
+        self.quick_wins = []          # Critical/High findings that are a Low-effort fix, ranked
+        self.status_summary = None    # remediation status merged from --status
         # Timestamp is injectable so reports are byte-reproducible for the same
         # input + config (e.g. CI sets SOURCE_DATE_EPOCH). Defaults to now.
         self.generated_at = generated_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -100,7 +102,7 @@ class ReportGenerator:
                        f'<tr><th>Technique</th><th>Name</th><th>Max severity</th>'
                        f'<th>Findings</th></tr>{mitre_rows}</table>') if mitre_rows else ""
 
-        paths_block = self._html_exposure() + self._html_paths()
+        paths_block = self._html_quick_wins() + self._html_exposure() + self._html_paths()
 
         cards = ""
         for f in sorted(self.findings, key=lambda x: SEV_ORDER.index((x.get("severity") or "INFO").upper())):
@@ -140,6 +142,11 @@ class ReportGenerator:
   footer{{color:var(--muted);font-size:12px;margin-top:40px;border-top:1px solid var(--line);padding-top:12px}}
   .xbig{{font-size:34px;font-weight:800;margin:6px 0 2px}} .xbar{{height:12px;background:#222;border-radius:6px;overflow:hidden;margin:8px 0 14px}}
   .xbar i{{display:block;height:100%;background:var(--red)}} .left{{color:var(--muted);white-space:nowrap}}
+  .eff{{display:inline-block;border:1px solid;border-radius:10px;padding:0 8px;font-size:12px;font-weight:700}}
+  .eff-Low{{color:#3fae6a;border-color:#1f5a35}} .eff-Medium{{color:#f0a429;border-color:#6b4a12}} .eff-High{{color:#ff6b6b;border-color:#6b1f1f}}
+  .qw{{display:inline-block;background:#163a25;color:#7be3a1;border-radius:10px;padding:0 8px;font-size:12px;font-weight:700}}
+  .qwrow{{background:var(--panel);border:1px solid #1f5a35;border-left:4px solid #3fae6a;border-radius:10px;padding:12px 16px;margin:10px 0}}
+  .st{{font-size:12px;color:var(--muted)}} .warnfix{{color:#ff6b6b;font-weight:700}}
 </style></head><body><div class="wrap">
 <h1>𓂀 {TOOL} — Attack-Path Report</h1>
 <div class="meta">Domain <b>{dom}</b> &nbsp;•&nbsp; DC {dc} &nbsp;•&nbsp; Generated {gen}
@@ -154,7 +161,40 @@ class ReportGenerator:
         Path(filepath).write_text(page, encoding="utf-8")
         self._p(f"[green]📄 HTML report → {filepath}[/green]")
 
+    @staticmethod
+    def _first_fix(f: dict) -> str:
+        opts = [o for o in f.get("fix_options") or [] if o.get("id")]
+        return opts[0]["fix"] if opts else (f.get("remediation") or [""])[0]
+
+    @staticmethod
+    def _source_text(f: dict) -> str:
+        parts = []
+        for src in f.get("source") or []:
+            bits = [src.get("collector", ""), src.get("file", ""), src.get("object", ""), src.get("sid", "")]
+            parts.append(" | ".join(b for b in bits if b))
+        return "; ".join(parts[:5]) + (f" (+{len(parts) - 5} more)" if len(parts) > 5 else "")
+
+    def _html_quick_wins(self) -> str:
+        esc = html.escape
+        if not self.findings or "effort" not in self.findings[0]:
+            return ""
+        if not self.quick_wins:
+            return ('<h2>Quick Wins</h2><p class="meta">No Critical or High finding is a Low-effort '
+                    'fix. Start with the exposure plan and the highest-severity findings.</p>')
+        rows = []
+        for f in self.quick_wins:
+            sev = (f.get("severity") or "").upper()
+            rows.append(f'<div class="qwrow"><b>{f["quick_win_rank"]}. {esc(f.get("title", ""))}</b> '
+                        f'<span class="pill" style="background:{SEV_HEX.get(sev, "#888")}">{sev}</span> '
+                        f'<span class="eff eff-Low">effort Low</span>'
+                        f'<div><b>Why critical:</b> {esc(f.get("why_critical", ""))}</div>'
+                        f'<div><b>Why easy:</b> {esc(f.get("effort_reason", ""))}</div>'
+                        f'<div><b>Do:</b> {esc(self._first_fix(f))}</div></div>')
+        return ('<h2>Quick Wins</h2><p class="meta">Critical or High severity, and a Low-effort fix. '
+                'Best first: the most users cut off from Tier-0.</p>' + "".join(rows))
+
     def _html_card(self, f: dict) -> str:
+        from horuseye.core.status import LABELS
         sev = (f.get("severity") or "INFO").upper()
         hexc = SEV_HEX.get(sev, "#888")
         esc = html.escape
@@ -162,7 +202,6 @@ class ReportGenerator:
         mitre = " ".join(
             f'<a href="https://attack.mitre.org/techniques/{m["id"].replace(".", "/")}/" '
             f'target="_blank">{m["id"]}</a>' for m in f.get("mitre", []))
-        rem = "".join(f"<li>{esc(r)}</li>" for r in f.get("remediation", []))
         det = "".join(f"<li>{esc(d)}</li>" for d in f.get("detection", []))
         score = f.get("score")
         conf = (f.get("confidence") or "").upper()
@@ -171,22 +210,61 @@ class ReportGenerator:
         if ev_items:
             rows = "".join(
                 f"<li><code>{esc(e.get('object',''))}</code>"
-                + (f" — {esc(e.get('detail',''))}" if e.get('detail') else "")
-                + f" <span class='meta'>({esc(e.get('source',''))})</span></li>"
+                + (f" ({esc(e.get('detail',''))})" if e.get('detail') else "")
+                + f" <span class='meta'>[{esc(e.get('source',''))}]</span></li>"
                 for e in ev_items[:50])
             more = f"<li class='meta'>+{len(ev_items)-50} more</li>" if len(ev_items) > 50 else ""
-            ev_html = f'<div class="lab">Evidence ({len(ev_items)})</div><ul>{rows}{more}</ul>'
+            ev_html = (f'<details><summary class="meta">Evidence ({len(ev_items)})</summary>'
+                       f'<ul>{rows}{more}</ul></details>')
+        effort = f.get("effort")
+        todo = ""
+        for o in f.get("fix_options") or []:
+            todo += "<li>" + esc(o.get("fix", ""))
+            if o.get("effort") and o.get("id"):
+                todo += f' <span class="eff eff-{o["effort"]}">{o["effort"]}</span>'
+            if o.get("users_cut_off"):
+                todo += f' <span class="meta">({o["users_cut_off"]:,} users cut off)</span>'
+            todo += "</li>"
+        todo += "".join(f"<li>{esc(r)}</li>" for r in f.get("remediation", []))
+        alt = f.get("keep_alternative")
+        if alt:
+            todo += ("<li>If this access is needed (<code>--keep '" + esc(alt["keep"]) + "'</code>), "
+                     "the fewest changes that still cut every user off: "
+                     + "; ".join(esc(c["fix"]) for c in alt["changes"]) + "</li>")
+        status = ""
+        if f.get("status"):
+            check = ('<span class="warnfix"> · marked fixed but still found</span>'
+                     if f.get("status_check") == "marked_fixed_still_found" else "")
+            status = ('<div class="lab">Status</div><div class="st"><b>'
+                      + esc(LABELS.get(f["status"], f["status"])) + "</b>"
+                      + (" · changed " + esc(f["status_changed"]) if f.get("status_changed") else "")
+                      + check + "</div>"
+                      + ('<p class="st">' + esc(f["notes"]) + "</p>" if f.get("notes") else ""))
+        badges = ""
+        if f.get("quick_win"):
+            badges += f' <span class="qw">Quick Win #{f["quick_win_rank"]}</span>'
+        if effort:
+            badges += f' <span class="eff eff-{effort}">effort {effort}</span>'
+        ease = {"Low": "an easy", "High": "a hard"}.get(effort, "a moderate")
+        why = (f'<div class="lab">Why it is critical</div><p>{esc(f["why_critical"])}</p>'
+               if f.get("why_critical") else "")
+        how_hard = (f'<div class="lab">Why it is {ease} fix</div><p>{esc(f.get("effort_reason", ""))}</p>'
+                    if effort else "")
+        conf_txt = f" · confidence {conf}: {esc(f.get('confidence_reason', ''))}" if conf else ""
         return f"""<div class="card" style="border-left-color:{hexc}">
   <h3>{esc(f.get("title",""))}</h3>
-  <div><span class="sev" style="color:{hexc}">{sev}</span>
+  <div><span class="sev" style="color:{hexc}">{sev}</span>{badges}
     {f'<span class="meta"> · score {score}</span>' if score is not None else ''}
-    {f'<span class="meta"> · confidence {conf}</span>' if conf else ''}
     {f'<span class="meta"> · {mitre}</span>' if mitre else ''}</div>
   <div class="aff">{esc(f.get("affected",""))}</div>
   {f'<p>{esc(f.get("description",""))}</p>' if f.get("description") else ''}
+  {why}
+  {how_hard}
+  {f'<div class="lab">What to do</div><ul>{todo}</ul>' if todo else ''}
+  {f'<div class="lab">How to verify</div>{cmds}' if cmds else ''}
+  <div class="lab">Source</div><p class="meta">{esc(self._source_text(f) or "detector")}{conf_txt}</p>
   {ev_html}
-  {f'<div class="lab">Validate</div>{cmds}' if cmds else ''}
-  {f'<div class="lab">Remediation</div><ul>{rem}</ul>' if rem else ''}
+  {status}
   {f'<div class="lab">Detection</div><ul>{det}</ul>' if det else ''}
 </div>"""
 
@@ -258,6 +336,23 @@ class ReportGenerator:
         out.append('<p class="meta">Counts enabled users, not Tier-0 accounts. Not modeled: '
                    + esc("; ".join(x.get("not_modeled") or [])) + '.</p>')
         return "".join(out)
+
+    def _md_quick_wins(self) -> list:
+        if not self.findings or "effort" not in self.findings[0]:
+            return []
+        out = ["## Quick Wins", "",
+               "Critical or High severity, and a Low-effort fix. Best first: the most users "
+               "cut off from Tier-0.", ""]
+        if not self.quick_wins:
+            return out + ["No Critical or High finding is a Low-effort fix. Start with the exposure "
+                          "plan and the highest-severity findings.", ""]
+        for f in self.quick_wins:
+            sev = (f.get("severity") or "").upper()
+            out += [f"{f['quick_win_rank']}. **{f.get('title', '')}** ({sev}, effort Low)  ",
+                    f"   Why critical: {f.get('why_critical', '')}  ",
+                    f"   Why easy: {f.get('effort_reason', '')}  ",
+                    f"   Do: {self._first_fix(f)}", ""]
+        return out
 
     def _md_exposure(self) -> list:
         x = self.exposure
@@ -335,6 +430,7 @@ class ReportGenerator:
                 "|" + "---|" * (len(SEV_ORDER) + 1),
                 "| Findings | " + " | ".join(str(c[s]) for s in SEV_ORDER) + " |", ""]
 
+        out += self._md_quick_wins()
         out += self._md_exposure()
 
         if self.attack_paths:
@@ -399,10 +495,34 @@ class ReportGenerator:
                 out.append("")
             if f.get("description"):
                 out += [f.get("description"), ""]
+            if f.get("why_critical"):
+                out += [f"**Why it is critical:** {f['why_critical']}", ""]
+            if f.get("effort"):
+                qw = f" · **Quick Win #{f['quick_win_rank']}**" if f.get("quick_win") else ""
+                out += [f"**Effort: {f['effort']}**{qw}. {f.get('effort_reason', '')}", ""]
+            todo = [f"- {o['fix']}" + (f" (effort {o['effort']})" if o.get("id") else "")
+                    for o in f.get("fix_options") or []]
+            todo += [f"- {r}" for r in f.get("remediation", [])]
+            if f.get("keep_alternative"):
+                alt = f["keep_alternative"]
+                todo.append(f"- If this access is needed (`--keep '{alt['keep']}'`), the fewest "
+                            f"changes that still cut every user off: "
+                            + "; ".join(c["fix"] for c in alt["changes"]))
+            if todo:
+                out += ["**What to do:**"] + todo + [""]
             if f.get("commands"):
-                out += ["**Validate:**", "```bash"] + list(f["commands"]) + ["```", ""]
-            if f.get("remediation"):
-                out += ["**Remediation:**"] + [f"- {r}" for r in f["remediation"]] + [""]
+                out += ["**How to verify:**", "```bash"] + list(f["commands"]) + ["```", ""]
+            src = self._source_text(f)
+            if src or f.get("confidence"):
+                out += [f"**Source:** {src or 'detector'} · confidence "
+                        f"{(f.get('confidence') or '').upper()}", ""]
+            if f.get("status") and (f["status"] != "open" or f.get("notes")):
+                from horuseye.core.status import LABELS
+                check = " · **marked fixed but still found**" if f.get("status_check") else ""
+                changed = f" (changed {f['status_changed']})" if f.get("status_changed") else ""
+                out += [f"**Status:** {LABELS.get(f['status'], f['status'])}{changed}{check}", ""]
+                if f.get("notes"):
+                    out += [f"> {f['notes']}", ""]
             if f.get("detection"):
                 out += ["**Detection:**"] + [f"- {x}" for x in f["detection"]] + [""]
         out += ["---", f"*Generated by {TOOL} — authorized security testing only.*"]
@@ -434,12 +554,47 @@ class ReportGenerator:
             "remediation_plans": self.remediation_plans,
             "keep": self.keep,
             "exposure": self.exposure,
+            "quick_wins": [f.get("id") for f in self.quick_wins],
+            "status": self.status_summary,
             "findings": self.findings,
         }
         if self.retest:
             data["retest"] = self.retest
         Path(filepath).write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
         self._p(f"[green]📄 JSON report → {filepath}[/green]")
+
+    # ── CSV (one row per finding, for spreadsheets) ─────────────────────────
+    CSV_COLUMNS = ("id", "title", "affected", "severity", "effort", "effort_reason", "quick_win",
+                   "why_critical", "fix", "validation_command", "source", "status", "notes")
+
+    @staticmethod
+    def _cell(v) -> str:
+        """Spreadsheet-safe text. A value starting with =, +, -, @ or a tab or
+        carriage return can run as a formula in Excel, and AD names come from
+        the directory, so those get a leading apostrophe."""
+        s = "" if v is None else str(v)
+        return "'" + s if s[:1] in ("=", "+", "-", "@", "\t", "\r") else s
+
+    def export_csv(self, filepath: str):
+        import csv
+        from horuseye.core.status import LABELS
+        sev_i = {s: i for i, s in enumerate(SEV_ORDER)}
+        eff_i = {"Low": 0, "Medium": 1, "High": 2}
+        rows = sorted(self.findings, key=lambda f: (
+            0 if f.get("quick_win") else 1, f.get("quick_win_rank") or 0,
+            sev_i.get((f.get("severity") or "INFO").upper(), 9), eff_i.get(f.get("effort"), 3),
+            str(f.get("id", ""))))
+        with open(filepath, "w", newline="", encoding="utf-8-sig") as fh:
+            w = csv.writer(fh)
+            w.writerow(self.CSV_COLUMNS)
+            for f in rows:
+                w.writerow([self._cell(v) for v in (
+                    f.get("id", ""), f.get("title", ""), f.get("affected", ""),
+                    (f.get("severity") or "").upper(), f.get("effort", ""), f.get("effort_reason", ""),
+                    "yes" if f.get("quick_win") else "no", f.get("why_critical", ""),
+                    self._first_fix(f), (f.get("commands") or [""])[0], self._source_text(f),
+                    LABELS.get(f.get("status") or "open", f.get("status", "")), f.get("notes", ""))])
+        self._p(f"[green]📊 CSV → {filepath}[/green]")
 
     # ── Helpers ────────────────────────────────────────────────────────────
     def _filter(self, severity_filter: str) -> list:

@@ -6,6 +6,61 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-11-07
+
+A remediation release: the report now answers "what is most critical that is
+an easy fix, and what are my options?", and tracks the work until a retest
+verifies it.
+
+### Added
+- **Fix effort** (`core/effort.py`, `docs/effort.md`): Low, Medium or High on
+  every finding and every proposed change (remediation options, the exposure
+  plan, the biggest fixes, the `--keep` alternative), with a plain reason and
+  a rule id. Effort is time to apply plus blast radius: an ACE on a non-Tier-0
+  object is Low; a group membership, a privileged session or a certificate
+  template is Medium; delegation, trusts, domain-wide policy, a GPO linked to
+  many objects or a directory sync account's replication rights are High;
+  taking access away from a service account is at least Medium. Deterministic,
+  documented, tested, no AI. Effort never changes severity (tested).
+- **Quick Wins**: Critical or High findings that are a Low-effort fix, first
+  in the CLI, HTML and Markdown reports and on the explorer's Overview, with a
+  Quick Wins filter in Findings and `"quick_win": true` / `quick_win_rank` in
+  the JSON (plus a top-level `quick_wins` list). Ranked by users cut off from
+  Tier-0, then users with a route through the finding, then score.
+- **Finding cards** in the explorer, HTML and Markdown with labelled parts:
+  why it is critical (users cut off, users with a route through it, or for an
+  account finding, where that account leads if compromised), why it is an easy
+  or hard fix, what to do (each fix with its own effort, and the fewest changes
+  that still cut every user off if the access must stay, `--keep`), how to
+  verify, and the source (file, collector, object, SID, confidence). Findings
+  are now linked to the attack-graph relationships their evidence names
+  (`rel_ids`, `impact` in the JSON).
+- **Status tracker**: Open, In progress, Fixed, Accepted risk, False positive,
+  with notes and a last-changed date. The explorer saves it in the browser
+  (every storage access is guarded; the page works if storage is blocked) and
+  exports or imports `horuseye-status.json` (schema `horuseye.status/1`: ids,
+  status, notes, dates; anything else is dropped). `--status FILE` merges it
+  into every output, with counts per status. With `--diff`, a finding marked
+  Fixed that is still present is flagged "marked fixed but still found", and a
+  finding gone since the baseline is "verified fixed".
+- **`--csv FILE`**: one row per finding for spreadsheets (id, title, affected,
+  severity, effort and reason, Quick Win, why critical, first fix, validation
+  command, source, status, notes), Quick Wins first. Cells that start like a
+  formula get a leading apostrophe, since AD names come from the directory.
+- `api.triage()`; `api.analyze()` returns `quick_wins`.
+- Explorer deep links: `#findings/<id>` opens one finding, `#quickwins` lists
+  the Quick Wins.
+- CI tests Python 3.13, and the smoke run writes a CSV.
+
+### Changed
+- The live demos show Quick Wins, effort and the tracker, with synthetic status
+  entries. In the explorer, the findings table shows effort and status instead
+  of confidence and rule (both remain in each card).
+
+### Fixed
+- Tier-0 checks for effort use the privilege model, so a Tier-0 object that is
+  on no route is still treated as Tier-0.
+
 ## [2.4.0] - 2026-11-04
 
 An exposure release: HorusEye now measures how many users can reach Tier-0,
@@ -320,6 +375,7 @@ and restructures the project into a proper installable package.
   hash-cracking engine, password sprayer, wordlist generator, lateral-movement
   mapper, attack timeline, team collaboration, and HTML/JSON reporting.
 
+[2.5.0]: https://github.com/Omar-tamerr/HorusEye/releases/tag/v2.5.0
 [2.4.0]: https://github.com/Omar-tamerr/HorusEye/releases/tag/v2.4.0
 [2.3.0]: https://github.com/Omar-tamerr/HorusEye/releases/tag/v2.3.0
 [2.2.0]: https://github.com/Omar-tamerr/HorusEye/releases/tag/v2.2.0

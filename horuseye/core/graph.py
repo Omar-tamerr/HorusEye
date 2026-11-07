@@ -868,6 +868,55 @@ class AttackGraph:
                             for g, e in best]
         return out
 
+    def cut_off_counts(self, groups: Dict[str, Set[tuple]],
+                       targets: Optional[List[str]] = None) -> Dict[str, Dict]:
+        """For each named group of relationships (edge keys): how many exposed
+        users lose every route to the targets if exactly those relationships
+        are removed, and whether any of them is on a route at all. Uses the
+        same model as ``exposure()``."""
+        goals = self.goal_nodes(targets)
+        pop = set(self._population(goals, targets))
+        broad = self._broad_nodes()
+
+        def exposed_after(banned) -> Set[str]:
+            reach = self._can_reach(goals, banned_edges=banned)
+            return pop if any(b in reach for b in broad) else pop & reach
+
+        reach0 = self._can_reach(goals)
+        base = exposed_after(frozenset()) if pop else set()
+        out = {}
+        for name, keys in groups.items():
+            on = {k for k in keys if k[1] in reach0 or k[1] in goals}
+            cut = (len(base) - len(exposed_after(frozenset(keys)))) if (keys and base) else 0
+            # Users with at least one route through these relationships.
+            through = 0
+            if on and base:
+                up = self._can_reach({k[0] for k in on})
+                through = len(base) if any(b in up for b in broad) else len(base & (up | {k[0] for k in on}))
+            out[name] = {"users_cut_off": cut, "users_through": through, "on_route": bool(on),
+                         "users_exposed": len(base), "users_total": len(pop)}
+        return out
+
+    def alternative_fix(self, protect: Set[tuple], targets: Optional[List[str]] = None,
+                        max_changes: int = 20) -> Optional[List[Dict]]:
+        """The fewest changes that leave the same users with no route while
+        keeping the relationships in ``protect`` (edge keys), i.e. the plan
+        if that access must stay (``--keep``). None if there is no such plan."""
+        goals = self.goal_nodes(targets)
+        pop = set(self._population(goals, targets))
+        reach = self._can_reach(goals)
+        broad_hit = {b for b in self._broad_nodes() if b in reach}
+        starts = (pop & reach) | broad_hit
+        if not starts:
+            return None
+        cut = self._min_cut(starts, goals,
+                            lambda e: self.edge_key(e) in protect or e.kind in _NOT_A_FIX,
+                            "sink", max_changes)
+        if not cut:
+            return None
+        return [dict(self._change(e), id=self.rel_id(e))
+                for e in sorted(cut, key=self.edge_key)]
+
     def whatif_view(self, targets: Optional[List[str]] = None) -> Dict:
         """The part of the graph that matters for exposure, compact enough to
         embed in the explorer: every node with a route to a target, the

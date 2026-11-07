@@ -41,7 +41,7 @@ def test_markdown_has_mermaid_and_sections(tmp_path):
     md = out.read_text(encoding="utf-8")
     assert "```mermaid" in md and "graph LR" in md
     assert "Attack Paths to Domain Admin" in md
-    assert "**Remediation:**" in md
+    assert "**What to do:**" in md       # remediation now lives in the finding card's "What to do"
     assert "-->|MemberOf|" in md
 
 

@@ -10,7 +10,7 @@ and produces an offline report for red and blue teams. Complements BloodHound.
 ![Python](https://img.shields.io/badge/Python-3.8%2B-blue?style=flat-square&logo=python)
 ![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows-purple?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
-![Version](https://img.shields.io/badge/Version-2.4-red?style=flat-square)
+![Version](https://img.shields.io/badge/Version-2.5-red?style=flat-square)
 ![Tests](https://img.shields.io/badge/tests-pytest-success?style=flat-square)
 ![Author](https://img.shields.io/badge/Author-Omar%20Tamer-gold?style=flat-square)
 
@@ -27,7 +27,7 @@ and produces an offline report for red and blue teams. Complements BloodHound.
 ## What It Does
 
 Point HorusEye at the data you already collect (a SharpHound/BloodHound export,
-plus optional Certipy, ldapdomaindump and NetExec output) and it answers four
+plus optional Certipy, ldapdomaindump and NetExec output) and it answers five
 questions:
 
 1. **How many of our users can reach Domain Admin, and what takes that to
@@ -45,6 +45,12 @@ questions:
    side by side (fewest changes, keep group memberships, fix nearest the
    targets) and shows who loses what access with each. Mark access people need
    for their job with `--keep`, and it is never proposed.
+5. **What is most critical that is also an easy fix, and are we done yet?**
+   Every finding and every fix gets an **effort** rating (Low, Medium, High,
+   with the reason). **Quick Wins**, Critical or High findings that are a
+   Low-effort fix, come first, ranked by how many users they cut off from
+   Tier-0. A **status tracker** with notes follows each finding to Fixed, and
+   the next run verifies it.
 
 Everything lands in one offline report: the interactive explorer above, plus
 HTML, Markdown and JSON. Nothing leaves the machine unless you turn on the
@@ -85,6 +91,10 @@ horuseye --bloodhound ./bh/ --domain corp.local --dc 10.10.10.5 \
     --graph --owned 'bob@corp.local' \
     --explorer report.html --json report.json --fail-on high
 
+# The team's tracker: Quick Wins first, a spreadsheet, and progress from the explorer
+horuseye --bloodhound ./bh/ --domain corp.local --dc 10.10.10.5 \
+    --explorer report.html --csv findings.csv --status horuseye-status.json
+
 # Next collection: fail if a change reopened a route or exposed more users
 horuseye --bloodhound ./bh-new/ --domain corp.local --dc 10.10.10.5 --owned 'bob@corp.local' \
     --diff report.json --fail-on exposure-up --fail-on new-route
@@ -98,7 +108,32 @@ the [exposure demo](https://omar-tamerr.github.io/HorusEye/exposure-demo.html)
 
 ---
 
-## What's New in v2.4
+## What's New in v2.5
+
+A remediation release: the report answers "what is most critical that is an
+easy fix, and what are my options?", and tracks the work until it is verified.
+
+- **Effort on every finding and every fix:** Low, Medium or High, with a plain
+  reason ("Remove one permission HELPDESK holds on SVC-BACKUP; nothing else
+  depends on it"). Deterministic rules, documented in
+  [docs/effort.md](docs/effort.md). Effort never changes severity.
+- **Quick Wins:** Critical or High findings that are a Low-effort fix, first in
+  the CLI, HTML, Markdown and the explorer, ranked by users cut off from
+  Tier-0. JSON gets `"quick_win": true`.
+- **Finding cards that answer the questions:** why it is critical (users cut
+  off, users with a route through it, or where that account leads if
+  compromised), why it is an easy or hard fix, what to do (each fix with its
+  own effort, plus the `--keep` alternative), how to verify, and the source
+  (file, collector, object, SID, confidence).
+- **Status tracker with notes:** Open, In progress, Fixed, Accepted risk, False
+  positive, saved in the browser, exported and imported as a small
+  `horuseye-status.json` (ids, status, notes, dates only). `--status FILE`
+  merges it into every output; with `--diff`, a finding marked Fixed that is
+  still there is flagged, and one that is gone is **verified fixed**.
+- **`--csv`:** one row per finding for the team's spreadsheet, Quick Wins first,
+  with formula-injection protection.
+
+<details><summary><b>What was new in v2.4</b></summary>
 
 - **Domain exposure.** One number for the whole domain: how many enabled users can reach Tier-0, the **fewest changes that bring it to zero** (each with the users left after it), and the **biggest single fixes**. Shown in the CLI, every report and the JSON (`exposure`). See [Domain Exposure](#domain-exposure).
 - **Live what-if in the explorer.** Apply a fix, or cut any relationship in the attack-path graph, and the page re-runs the reachability search offline: the number drops as you go.
@@ -108,6 +143,8 @@ the [exposure demo](https://omar-tamerr.github.io/HorusEye/exposure-demo.html)
 - **Footholds hold what every user can do.** `--owned bob` now also follows routes open to Domain Users / Authenticated Users, so a plan no longer claims to break every route while an ESC1 open to everyone remains.
 - **Remediation options** compared side by side, with who loses what access and `--keep` for access people need; and a redesigned attack-path view in the explorer (both from the previous `main`).
 - A synthetic 1,245-user example (`examples/karnak-lab`, rebuilt by `scripts/make_karnak_lab.py`) and a second live demo.
+
+</details>
 
 <details><summary><b>What was new in v2.3</b></summary>
 
@@ -147,9 +184,9 @@ See the [full changelog](CHANGELOG.md) and the [Roadmap](#roadmap).
 
 ## Contents
 
-- [What It Does](#what-it-does) · [Quick Start](#quick-start) · [What's New](#whats-new-in-v24)
+- [What It Does](#what-it-does) · [Quick Start](#quick-start) · [What's New](#whats-new-in-v25)
 - [Features](#features) · [Installation](#installation) · [Input Sources](#input-sources)
-- [Attack Detection](#attack-detection) · [Domain Exposure](#domain-exposure) · [Attack Paths & Remediation Options](#attack-paths)
+- [Attack Detection](#attack-detection) · [Remediation Tracker](#remediation-tracker) · [Domain Exposure](#domain-exposure) · [Attack Paths & Remediation Options](#attack-paths)
 - [Reports](#reports) · [AI Analysis](#ai-analysis) · [More Examples](#more-examples)
 - [Full CLI Reference](#full-cli-reference) · [Project Structure](#project-structure) · [Testing](#testing) · [Roadmap](#roadmap)
 - [Offensive Helpers (Labs & CTF)](#offensive-helpers-labs--ctf): hash cracking, wordlists,
@@ -170,6 +207,9 @@ See the [full changelog](CHANGELOG.md) and the [Roadmap](#roadmap).
 | **Analysis** | Scoring | Ranks findings by impact × ease with a Tier-0 privilege model |
 | **Remediation** | Choke points | The single relationships whose removal breaks every route in the imported graph |
 | **Remediation** | Fix options | Alternatives compared side by side, with who loses what access; `--keep` for required access |
+| **Remediation** | Effort & Quick Wins | Low / Medium / High effort with a reason on every finding and fix; Critical or High + Low effort first |
+| **Remediation** | Status tracker | Open, In progress, Fixed, Accepted risk, False positive, with notes; shared as `horuseye-status.json`; `--diff` verifies fixes |
+| **Reporting** | CSV | `--csv`: one row per finding for spreadsheets |
 | **Reporting** | Explorer | One offline HTML file: dashboard, interactive graph, fix options, findings |
 | **Reporting** | HTML / Markdown / JSON | Dark-theme report, Mermaid diagrams, versioned JSON schema |
 | **Exposure** | Domain exposure | Users with a route to Tier-0, fewest changes to 0%, biggest single fixes, live what-if |
@@ -306,6 +346,54 @@ HorusEye detects **all 13 attack path types** below (all implemented — see the
 Findings are scored **0–100**, combining severity with an exploitability-ease factor, and sorted so the shortest path to Domain Admin surfaces first (a one-command DCSync outranks a crack-then-pivot chain). The **Tier-0 privilege model** — built from `adminCount` and well-known group membership — promotes any path that lands directly on a Domain/Enterprise Admin to CRITICAL.
 
 > **Scope note.** Detection reports *where* a misconfiguration exists and the standard, publicly documented command to validate it. The offensive execution engines (`--auto-exploit`, `--auto-chain`, `--lsass-dump`) are stubs — they print the method rather than executing it — and are tracked on the [Roadmap](#roadmap). Detection itself requires none of the external tools.
+
+---
+
+## Remediation Tracker
+
+For the team that has to make the changes, the report answers one question
+first: **what is most critical that is an easy fix, and what are my options?**
+
+**Effort.** Every finding and every proposed fix is rated Low, Medium or High:
+time to apply plus who feels it. Removing an ACE from a non-Tier-0 object is
+Low; removing a user from a group is Medium (they lose everything it grants);
+delegation, trusts and domain-wide policy are High; anything that takes
+access away from a service account is at least Medium ("may break the
+service, test first"). Each rating comes with its reason and a rule id; the
+rules are in [docs/effort.md](docs/effort.md). Severity is never changed.
+
+**Quick Wins** are Critical or High findings that are a Low-effort fix. They
+lead the CLI output, the HTML and Markdown reports, and the explorer's
+Overview, ranked by how many users the fix cuts off from Tier-0, then how many
+users have a route through it.
+
+**Every finding card** shows, labelled: why it is critical (measured on the
+attack graph, or for an account finding, where that account leads if
+compromised), why it is an easy or hard fix, what to do (each fix with its own
+effort, plus the plan to use instead if the access must stay, `--keep`), how
+to verify, and the source: input file, collector, object, SID and confidence.
+
+**Status.** In the explorer, set each finding to Open, In progress, Fixed,
+Accepted risk or False positive, with notes. It is saved in your browser (and
+the page still works if the browser blocks storage), and **Export status**
+writes `horuseye-status.json` for the team: finding ids, status, notes and
+dates, nothing else. Feed it back to the next run:
+
+```bash
+horuseye --bloodhound ./bh-retest/ --domain corp.local --dc 10.10.10.5 \
+    --diff report.json --status horuseye-status.json --explorer report.html --csv findings.csv
+```
+
+The summary counts each status, flags any finding **marked fixed but still
+found**, and lists the findings that are gone since the baseline as **verified
+fixed**. `--csv` writes one row per finding (Quick Wins first) with id, title,
+severity, effort and reason, Quick Win, why critical, the first fix, the
+validation command, source, status and notes. Cells that start like a formula
+are neutralized, because AD names come from the directory.
+
+Finding ids are stable between runs on the same data. A grouped finding (for
+example "8 users can reset this password") changes id when its members
+change, so its status shows as new rather than being guessed.
 
 ---
 
@@ -614,6 +702,8 @@ AI + Output:
   --explorer FILE       Interactive offline HTML explorer (dashboard+graph+findings)
   --json FILE           Export JSON findings (schema horuseye.report/2)
   --diff OLD.json       Retest: compare findings, routes and exposure to a previous JSON report
+  --status FILE         Merge a horuseye-status.json (from the explorer) into every output
+  --csv FILE            Spreadsheet: one row per finding, Quick Wins first
   --fail-on GATE        CI gate, repeatable: critical|high|medium|low (exit 2 on findings),
                         new-route|exposure-up (exit 4 on drift; need --diff)
   --severity LEVEL      Filter: critical | high | all
@@ -646,7 +736,7 @@ horuseye/
 ├── reports/          # CLI / HTML / Markdown / JSON report generation
 ├── ai/               # optional Claude layer + local redaction (horuseye[ai])
 └── utils/            # config, dependency preflight, help
-tests/                # pytest suite — 166 tests (parsers, detector, graph,
+tests/                # pytest suite: 245 tests (parsers, detector, graph,
                       #   knowledge, noise, reports, diff, AI, schema,
                       #   provenance, determinism, redaction)
 docs/                 # screenshots and reference material
@@ -676,7 +766,7 @@ pip install -e ".[dev]"   # installs pytest
 pytest -q
 ```
 
-212 tests cover the BloodHound and Certipy parsers, the scorer, the full
+245 tests cover the BloodHound and Certipy parsers, the scorer, the full
 detection engine, noise reduction, the knowledge base, the attack-path graph
 (including ADCS, RBCD, SID history, LAPS/gMSA and GPO links) and remediation
 options, domain exposure (checked against brute force on random domains), the

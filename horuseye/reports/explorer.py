@@ -492,6 +492,21 @@ __HEAD_EXTRA__
  .frow{cursor:pointer} .frow:hover{background:#18181c}
  .frow.open{background:#18181c}
  .detail td{background:var(--panel2);border-left:2px solid var(--red);padding:10px 14px}
+ .eff{display:inline-block;border:1px solid;border-radius:9px;padding:0 7px;font-size:11px;font-weight:700;white-space:nowrap}
+ .eff-Low{color:var(--green);border-color:#1f5a35} .eff-Medium{color:var(--amber);border-color:#6b4a12}
+ .eff-High{color:var(--red2);border-color:#6b1f2a}
+ .qwb{display:inline-block;background:#163a25;color:#7be3a1;border-radius:9px;padding:0 7px;font-size:11px;font-weight:700;white-space:nowrap}
+ .stb{display:inline-block;border-radius:9px;padding:0 7px;font-size:11px;white-space:nowrap;border:1px solid var(--line);color:var(--muted)}
+ .stb.st-in_progress{color:#8fc1ff;border-color:#24466e} .stb.st-fixed{color:var(--green);border-color:#1f5a35}
+ .stb.st-accepted_risk{color:var(--amber);border-color:#6b4a12} .stb.st-false_positive{color:#c9c9cf}
+ .qwcard{border-color:#1f5a35;background:linear-gradient(180deg,#0f2017,var(--panel) 70%);margin-bottom:16px}
+ .qwlist{margin:6px 0 4px 18px;padding:0} .qwlist li{margin:8px 0}
+ .stedit{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center;max-width:720px}
+ .stedit select,.stedit textarea,.controls select{background:var(--panel);border:1px solid var(--line);color:var(--fg);
+   border-radius:8px;padding:5px 8px;font:inherit;font-size:13px}
+ .stedit textarea{grid-column:1/-1;min-height:64px;resize:vertical}
+ .stbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:-2px 0 10px;font-size:12.5px;color:var(--muted)}
+ .src{margin:2px 0 4px 18px;padding:0;font-size:12.5px;color:var(--muted)}
  footer{color:var(--muted);font-size:12px;padding:18px 20px;border-top:1px solid var(--line);margin-top:24px}
 
  @media(max-width:900px){.pgrid{grid-template-columns:1fr}}
@@ -529,7 +544,50 @@ var SEVC = {CRITICAL:"var(--crit)",HIGH:"var(--high)",MEDIUM:"var(--med)",LOW:"v
 var VIEWS = ["overview","paths","findings"];
 var G = D.graph;
 var S = {route: D.paths.length ? 0 : -1, edge: null, node: null, plan: 0};
-var F = {sev: "ALL", q: "", open: {}, sortK: "severity", sortDir: 1};
+var F = {sev: "ALL", q: "", open: {}, sortK: "severity", sortDir: 1, qw: false, st: "ALL"};
+
+// ── Remediation status: saved in this browser, exported/imported to share ──
+// Every storage access is inside try/catch: if the browser blocks storage the
+// page still works, and changes last until it is closed (Export keeps them).
+var STATUSES = ["open","in_progress","fixed","accepted_risk","false_positive"];
+var SLABEL = {open:"Open",in_progress:"In progress",fixed:"Fixed",accepted_risk:"Accepted risk",false_positive:"False positive"};
+var SKEY = "horuseye-status:" + String((D.meta && D.meta.domain) || "report");
+var STORE_OK = true, ST = {};
+function stRead(){try{var raw=window.localStorage.getItem(SKEY);return raw?JSON.parse(raw):null;}catch(e){STORE_OK=false;return null;}}
+function stWrite(){try{window.localStorage.setItem(SKEY,JSON.stringify(stDoc()));}catch(e){STORE_OK=false;}}
+// Keep only ids, status, notes and dates from a horuseye.status/1 document.
+function stClean(doc){
+  if(!doc||doc.schema!=="horuseye.status/1"||!doc.findings||typeof doc.findings!=="object")return null;
+  var out={};
+  Object.keys(doc.findings).forEach(function(id){var e=doc.findings[id];
+    if(!/^[0-9a-f]{12}$/.test(id)||!e||STATUSES.indexOf(e.status)<0)return;
+    out[id]={status:e.status,notes:typeof e.notes==="string"?e.notes.slice(0,2000):"",
+      changed:(typeof e.changed==="string"&&/^\d{4}-\d{2}-\d{2}/.test(e.changed))?e.changed.slice(0,25):""};});
+  return out;
+}
+function stMergeIn(entries){var n=0;Object.keys(entries||{}).forEach(function(id){var a=ST[id],b=entries[id];
+  if(!a||(b.changed||"")>=(a.changed||"")){ST[id]=b;n++;}});return n;}
+function stDoc(){var out={};Object.keys(ST).sort().forEach(function(id){var e=ST[id];
+  if(e.status!=="open"||e.notes)out[id]={status:e.status,notes:e.notes,changed:e.changed};});
+  return {schema:"horuseye.status/1",findings:out};}
+function stOf(f){return ST[f.id]||{status:"open",notes:"",changed:""};}
+function stSet(id,patch){var e=ST[id]||{status:"open",notes:"",changed:""};
+  Object.keys(patch).forEach(function(k){e[k]=patch[k];});e.changed=new Date().toISOString().slice(0,10);ST[id]=e;stWrite();}
+function stExport(){var txt=JSON.stringify(stDoc(),null,2);
+  try{var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([txt],{type:"application/json"}));
+    a.download="horuseye-status.json";document.body.appendChild(a);a.click();
+    setTimeout(function(){URL.revokeObjectURL(a.href);a.parentNode.removeChild(a);},0);}
+  catch(e){window.prompt("Copy your status file:",txt);}}
+function stImport(file){var r=new FileReader();r.onload=function(){var doc=null;try{doc=JSON.parse(r.result);}catch(e){}
+  var c=stClean(doc);if(!c){stNote("That file is not a horuseye.status/1 status file.");return;}
+  var n=stMergeIn(c);stWrite();renderFindings();stNote(plural(n,"status")+" imported.");};r.readAsText(file);}
+// Statuses merged by the CLI (--status) come first; newer browser edits win.
+D.findings.forEach(function(f){if(f.status&&(f.status!=="open"||f.notes))
+  ST[f.id]={status:f.status,notes:f.notes||"",changed:f.status_changed||""};});
+stMergeIn(stClean(stRead()));
+function effBadge(l){return l?'<span class="eff eff-'+esc(l)+'">'+esc(l)+'</span>':'';}
+function stBadge(s){return '<span class="stb st-'+esc(s)+'">'+esc(SLABEL[s]||s)+'</span>';}
+function firstFix(f){var o=(f.fix_options||[]).filter(function(x){return x.id;});return o.length?o[0].fix:((f.remediation||[])[0]||"");}
 var PL = D.plans || [];   // remediation options, each breaking every route
 var X = D.exposure, XG = D.xg, XC = {}, XR = null, XCUR = null;  // exposure + live what-if
 
@@ -652,12 +710,12 @@ function fixText(e){
   return "Remove this relationship.";
 }
 function edgeCmd(e,cmd){return e&&e.type==="MemberOf"?"":cmdBlock(cmd);}  // membership: nothing to run
-function cmdBlock(cmd){
+function cmdBlock(cmd,label){
   var lines=String(cmd||"").split("\n"), notes=[], run=[];
   lines.forEach(function(l){var t=l.trim();if(!t)return;
     if(t.charAt(0)==="#")notes.push(t.replace(/^#\s*/,""));else run.push(t);});
   if(!notes.length&&!run.length)return "";
-  var h='<div class="lab">Validate <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">(authorized testing only)</span></div>';
+  var h='<div class="lab">'+esc(label||"Validate")+' <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">(authorized testing only)</span></div>';
   notes.forEach(function(n){h+='<div class="muted small">'+esc(n)+'</div>';});
   run.forEach(function(c){h+='<div class="cmd"><code>'+esc(c)+'</code><button type="button" data-copy="'+esc(c)+'">copy</button></div>';});
   return h;
@@ -695,6 +753,12 @@ function copyText(t,btn){
   $("tiles").innerHTML=h;
 })();
 function show(v){
+  // Deep links: #findings/<id> opens one finding, #quickwins lists the Quick Wins.
+  var m=/^findings\/([0-9a-f]{12})$/.exec(v||"");
+  if(m&&typeof openFinding==="function"){F.sev="ALL";F.q="";F.qw=false;F.st="ALL";F.open={};F.open[m[1]]=true;
+    syncFilterUI();renderFindings();v="findings";
+    setTimeout(function(){var tr=document.querySelector('#ftab tr[data-fid="'+m[1]+'"]');if(tr)tr.scrollIntoView({block:"start"});},30);}
+  else if(v==="quickwins"){F.qw=true;F.sev="ALL";F.st="ALL";F.q="";syncFilterUI();renderFindings();v="findings";}
   if(VIEWS.indexOf(v)<0)v=D.default_view||"overview";
   each("nav.tabs button",function(b){b.classList.toggle("active",b.getAttribute("data-view")===v);});
   VIEWS.forEach(function(x){$("v-"+x).classList.toggle("active",x===v);});
@@ -731,8 +795,19 @@ function exposureCard(){
     +esc((X.modeled||[]).join("; "))+'.</p><p class="muted small">Not modeled: '+esc((X.not_modeled||[]).join("; "))+'.</p></details></div>';
   return h;
 }
+function quickWinsCard(){
+  if(!D.findings.length||D.findings[0].effort==null)return "";
+  var qw=D.findings.filter(function(f){return f.quick_win;}).sort(function(a,b){return (a.quick_win_rank||0)-(b.quick_win_rank||0);});
+  var h='<div class="card qwcard" id="qwcard"><div class="lab">Quick wins · critical and easy to fix</div>';
+  if(!qw.length)return h+'<p class="muted small">No Critical or High finding is a Low-effort fix. Start with the exposure plan below.</p></div>';
+  h+='<p class="muted small">Critical or High severity, and a Low-effort fix. Best first: the most users cut off from Tier-0.</p><ol class="qwlist">';
+  qw.slice(0,5).forEach(function(f){
+    h+='<li><a href="#" data-find="'+esc(f.id)+'"><b>'+esc(f.title)+'</b></a> '+pill(f.severity)+' '+effBadge(f.effort)+' '+stBadge(stOf(f).status)
+      +'<div class="muted small">'+esc(f.why_critical||"")+'</div><div class="small">Do: '+esc(firstFix(f))+'</div></li>';});
+  return h+'</ol>'+(qw.length>5?'<a href="#" class="small" data-qwall="1">All '+qw.length+' Quick Wins →</a>':'<a href="#" class="small" data-qwall="1">Track them in Findings →</a>')+'</div>';
+}
 (function(){
-  var m=D.meta,h=exposureCard()+'<div class="grid">';
+  var m=D.meta,h=quickWinsCard()+exposureCard()+'<div class="grid">';
   h+='<div class="card"><div class="lab">Risk summary</div><table>';
   SEV.forEach(function(s){h+='<tr><td>'+pill(s)+'</td><td>'+(m.counts[s]||0)+'</td></tr>';});
   h+='</table>';
@@ -929,30 +1004,72 @@ function renderFix(){
 }
 
 // ── Findings ────────────────────────────────────────────────────────────────
+var EFF={Low:0,Medium:1,High:2};
 (function(){
-  var h='<h2>Findings</h2><div class="controls"><span class="fbtn active" data-sev="ALL">All</span>';
+  var hasQW=D.findings.some(function(f){return f.quick_win;});
+  var h='<h2>Findings</h2><div class="controls"><span class="fbtn active" data-sev="ALL">All</span>'
+    +(hasQW?'<span class="fbtn" data-qwf="1">Quick Wins</span>':'');
   SEV.forEach(function(s){if(D.meta.counts[s])h+='<span class="fbtn" data-sev="'+s+'">'+s+'</span>';});
-  h+='<input id="fq" type="search" placeholder="Search title, affected object or rule…" aria-label="Search findings"></div>'
-    +'<div class="tscroll"><table id="ftab"><thead><tr><th data-k="severity">Severity</th><th class="hm" data-k="score">Score</th>'
-    +'<th class="hm" data-k="confidence">Conf.</th><th class="hm" data-k="rule_id">Rule</th><th data-k="affected">Affected</th><th>Title</th></tr></thead><tbody></tbody></table></div>';
+  h+='<select id="fst" aria-label="Filter by status"><option value="ALL">Any status</option>'
+    +STATUSES.map(function(k){return '<option value="'+k+'">'+SLABEL[k]+'</option>';}).join("")+'</select>'
+    +'<input id="fq" type="search" placeholder="Search title, affected object or rule…" aria-label="Search findings"></div>'
+    +'<div class="stbar"><span id="stsum"></span><button type="button" class="btn" data-stexport="1">⬇ Export status</button>'
+    +'<label class="btn" for="stfile">⬆ Import status</label><input id="stfile" type="file" accept=".json,application/json" hidden>'
+    +'<span id="stnote"></span></div>'
+    +'<div class="tscroll"><table id="ftab"><thead><tr><th data-k="severity">Severity</th><th data-k="effort">Effort</th>'
+    +'<th data-k="status">Status</th><th class="hm" data-k="score">Score</th><th class="hm" data-k="affected">Affected</th>'
+    +'<th>Title</th></tr></thead><tbody></tbody></table></div>';
   $("v-findings").innerHTML=h;
-  each("#v-findings .fbtn",function(b){b.onclick=function(){F.sev=b.getAttribute("data-sev");syncFilterUI();renderFindings();};});
+  each("#v-findings .fbtn",function(b){b.onclick=function(){
+    if(b.getAttribute("data-qwf")){F.qw=!F.qw;F.sev="ALL";}else{F.sev=b.getAttribute("data-sev");F.qw=false;}
+    syncFilterUI();renderFindings();};});
   $("fq").oninput=function(){F.q=this.value;renderFindings();};
+  $("fst").onchange=function(){F.st=this.value;renderFindings();};
+  $("stfile").onchange=function(){if(this.files&&this.files[0])stImport(this.files[0]);this.value="";};
   each("#ftab th[data-k]",function(th){th.onclick=function(){var k=th.getAttribute("data-k");
     if(F.sortK===k)F.sortDir=-F.sortDir;else{F.sortK=k;F.sortDir=1;}renderFindings();};});
   renderFindings();
 })();
-function syncFilterUI(){each("#v-findings .fbtn",function(x){x.classList.toggle("active",x.getAttribute("data-sev")===F.sev);});$("fq").value=F.q;}
+function syncFilterUI(){
+  each("#v-findings .fbtn",function(x){x.classList.toggle("active",
+    x.getAttribute("data-qwf")?F.qw:(!F.qw&&x.getAttribute("data-sev")===F.sev));});
+  $("fq").value=F.q;$("fst").value=F.st;
+}
+function stNote(msg){var n=$("stnote");if(n)n.textContent=msg||"";}
+function renderStatusSummary(){
+  var c={};STATUSES.forEach(function(k){c[k]=0;});D.findings.forEach(function(f){c[stOf(f).status]++;});
+  var el=$("stsum");if(!el)return;
+  el.innerHTML=STATUSES.filter(function(k){return c[k];}).map(function(k){return stBadge(k)+' '+c[k];}).join(" ")
+    +(STORE_OK?' <span class="muted">· saved in this browser</span>'
+      :' <span class="amber">· this browser blocks storage: changes last until you close the page, so Export them</span>');
+}
 function findingDetail(f){
-  var h="";
+  var h="",s=stOf(f);
   if(f.description)h+='<p>'+esc(f.description)+'</p>';
-  if(f.confidence)h+='<div class="muted small">Confidence <b>'+esc(f.confidence)+'</b> — '+esc(f.confidence_reason||"")+'</div>';
-  if(f.evidence&&f.evidence.length){h+='<div class="lab">Evidence ('+f.evidence.length+')</div><ul>';
-    f.evidence.slice(0,60).forEach(function(e){h+='<li><code>'+esc(e.object)+'</code>'+(e.detail?' — '+esc(e.detail):'')
-      +' <span class="muted small">('+esc(e.source)+(e.file?", "+esc(e.file):"")+')</span></li>';});
-    if(f.evidence.length>60)h+='<li class="muted">+'+(f.evidence.length-60)+' more</li>';h+='</ul>';}
-  if(f.commands&&f.commands.length)h+=cmdBlock(f.commands.join("\n"));
-  if(f.remediation&&f.remediation.length){h+='<div class="lab">Remediation</div><ul>';f.remediation.forEach(function(x){h+='<li>'+esc(x)+'</li>';});h+='</ul>';}
+  if(f.why_critical)h+='<div class="lab">Why it is critical</div><p>'+esc(f.why_critical)+'</p>';
+  if(f.effort)h+='<div class="lab">Why it is '+(f.effort==="Low"?"an easy":(f.effort==="High"?"a hard":"a moderate"))
+    +' fix</div><p>'+effBadge(f.effort)+' '+esc(f.effort_reason||"")+'</p>';
+  var todo=(f.fix_options||[]).map(function(o){return '<li>'+esc(o.fix)+(o.id&&o.effort?' '+effBadge(o.effort):'')
+      +(o.users_cut_off?' <span class="muted small">('+fmt(o.users_cut_off)+' users cut off)</span>':'')+'</li>';}).join("")
+    +(f.remediation||[]).map(function(x){return '<li>'+esc(x)+'</li>';}).join("");
+  if(f.keep_alternative)todo+='<li>If this access is needed (<code>--keep "'+esc(f.keep_alternative.keep)+'"</code>), the fewest changes that still cut every user off: '
+    +f.keep_alternative.changes.map(function(c){return esc(c.fix);}).join("; ")+'</li>';
+  if(todo)h+='<div class="lab">What to do</div><ul>'+todo+'</ul>';
+  if(f.commands&&f.commands.length)h+=cmdBlock(f.commands.join("\n"),"How to verify");
+  h+='<div class="lab">Source</div>';
+  if(f.source&&f.source.length)h+='<ul class="src">'+f.source.slice(0,8).map(function(x){
+      return '<li>'+[x.collector,x.file,x.object,x.sid].filter(Boolean).map(esc).join(" · ")+'</li>';}).join("")
+    +(f.source.length>8?'<li>+'+(f.source.length-8)+' more</li>':'')+'</ul>';
+  if(f.confidence)h+='<div class="muted small">Confidence <b>'+esc(f.confidence)+'</b>: '+esc(f.confidence_reason||"")+'</div>';
+  h+='<div class="lab">Status</div><div class="stedit"><select data-st="'+esc(f.id)+'" aria-label="Status">'
+    +STATUSES.map(function(k){return '<option value="'+k+'"'+(s.status===k?' selected':'')+'>'+SLABEL[k]+'</option>';}).join("")
+    +'</select><span class="muted small">'+(s.changed?'Last changed '+esc(s.changed):'Not changed yet')
+    +(f.status_check==="marked_fixed_still_found"&&s.status==="fixed"?' · <span class="red">marked fixed but still found in this run</span>':'')+'</span>'
+    +'<textarea data-notes="'+esc(f.id)+'" placeholder="Notes: owner, ticket, decision" aria-label="Notes">'+esc(s.notes)+'</textarea></div>';
+  if(f.evidence&&f.evidence.length){h+='<details><summary class="lab">Evidence ('+f.evidence.length+')</summary><ul>';
+    f.evidence.slice(0,60).forEach(function(e){h+='<li><code>'+esc(e.object)+'</code>'+(e.detail?' ('+esc(e.detail)+')':'')
+      +' <span class="muted small">['+esc(e.source)+(e.file?", "+esc(e.file):"")+']</span></li>';});
+    if(f.evidence.length>60)h+='<li class="muted">+'+(f.evidence.length-60)+' more</li>';h+='</ul></details>';}
   if(f.detection&&f.detection.length){h+='<div class="lab">Detection</div><ul>';f.detection.forEach(function(x){h+='<li>'+esc(x)+'</li>';});h+='</ul>';}
   if(f.mitre&&f.mitre.length){h+='<div class="lab">MITRE ATT&amp;CK</div><div>'+f.mitre.map(function(m){
     return '<a href="https://attack.mitre.org/techniques/'+m.id.replace(".","/")+'/" target="_blank" rel="noopener">'+m.id+'</a> '+esc(m.name);}).join("<br>")+'</div>';}
@@ -960,26 +1077,37 @@ function findingDetail(f){
 }
 function renderFindings(){
   var rows=D.findings.filter(function(f){
+    if(F.qw&&!f.quick_win)return false;
     if(F.sev!=="ALL"&&(f.severity||"INFO")!==F.sev)return false;
+    if(F.st!=="ALL"&&stOf(f).status!==F.st)return false;
     if(F.q){var s=(f.title+" "+f.affected+" "+(f.rule_id||f.type)).toLowerCase();if(s.indexOf(F.q.toLowerCase())<0)return false;}
     return true;});
   rows.sort(function(a,b){
-    if(F.sortK==="severity")return bySev(a,b)*F.sortDir;
+    if(F.qw)return ((a.quick_win_rank||0)-(b.quick_win_rank||0))*F.sortDir;
+    if(F.sortK==="severity")return (bySev(a,b)||((EFF[a.effort]||1)-(EFF[b.effort]||1)))*F.sortDir;
+    if(F.sortK==="effort")return (((EFF[a.effort]||1)-(EFF[b.effort]||1))||bySev(a,b))*F.sortDir;
+    if(F.sortK==="status")return (STATUSES.indexOf(stOf(a).status)-STATUSES.indexOf(stOf(b).status))*F.sortDir;
     if(F.sortK==="score")return ((b.score||0)-(a.score||0))*F.sortDir;
     return String(a[F.sortK]||"").localeCompare(String(b[F.sortK]||""))*F.sortDir;});
   var out="";
   rows.forEach(function(f){var open=!!F.open[f.id];
-    out+='<tr class="frow'+(open?' open':'')+'" data-fid="'+esc(f.id)+'"><td>'+pill(f.severity)+'</td><td class="hm">'+(f.score==null?"":f.score)+'</td>'
-      +'<td class="hm muted">'+esc(f.confidence||"")+'</td><td class="hm"><code>'+esc(f.rule_id||f.type)+'</code></td>'
-      +'<td class="muted">'+esc(f.affected)+'</td><td>'+esc(f.title)+'</td></tr>'
+    out+='<tr class="frow'+(open?' open':'')+'" data-fid="'+esc(f.id)+'"><td>'+pill(f.severity)+'</td><td>'+effBadge(f.effort)+'</td>'
+      +'<td>'+stBadge(stOf(f).status)+'</td><td class="hm">'+(f.score==null?"":f.score)+'</td>'
+      +'<td class="hm muted">'+esc(f.affected)+'</td><td>'+(f.quick_win?'<span class="qwb">Quick Win #'+f.quick_win_rank+'</span> ':'')
+      +esc(f.title)+'</td></tr>'
       +'<tr class="detail" style="display:'+(open?'table-row':'none')+'"><td colspan="6">'+findingDetail(f)+'</td></tr>';});
   var tb=document.querySelector("#ftab tbody");
   tb.innerHTML=out||'<tr><td colspan="6" class="muted">No findings match.</td></tr>';
   each("#ftab .frow",function(tr){tr.onclick=function(ev){if(ev.target.closest("[data-copy],a"))return;
     var id=tr.getAttribute("data-fid");F.open[id]=!F.open[id];renderFindings();};});
+  renderStatusSummary();
 }
+document.addEventListener("change",function(ev){var t=ev.target;
+  if(t&&t.getAttribute&&t.getAttribute("data-st")){stSet(t.getAttribute("data-st"),{status:t.value});renderFindings();}});
+document.addEventListener("input",function(ev){var t=ev.target;
+  if(t&&t.getAttribute&&t.getAttribute("data-notes")){stSet(t.getAttribute("data-notes"),{notes:t.value.slice(0,2000)});renderStatusSummary();}});
 function openFinding(id){
-  F.sev="ALL";F.q="";F.open={};F.open[id]=true;syncFilterUI();renderFindings();
+  F.sev="ALL";F.q="";F.qw=false;F.st="ALL";F.open={};F.open[id]=true;syncFilterUI();renderFindings();
   if(location.hash!=="#findings")location.hash="findings";else show("findings");
   setTimeout(function(){var tr=document.querySelector('#ftab tr[data-fid="'+(window.CSS&&CSS.escape?CSS.escape(id):id)+'"]');
     if(tr)tr.scrollIntoView({behavior:"smooth",block:"center"});},60);
@@ -996,6 +1124,8 @@ document.addEventListener("click",function(ev){
   if((b=t.closest("[data-edge-sel]"))){ev.preventDefault();S.edge=+b.getAttribute("data-edge-sel");S.node=null;renderPaths();
     var gb=$("gbox");if(gb&&gb.getBoundingClientRect().top<0)gb.scrollIntoView({behavior:"smooth",block:"start"});return;}
   if((b=t.closest("[data-find]"))){ev.preventDefault();openFinding(b.getAttribute("data-find"));return;}
+  if((b=t.closest("[data-qwall]"))){ev.preventDefault();F.qw=true;F.sev="ALL";F.st="ALL";F.q="";syncFilterUI();renderFindings();if(location.hash!=="#findings")location.hash="findings";else show("findings");return;}
+  if((b=t.closest("[data-stexport]"))){ev.preventDefault();stExport();return;}
   if((b=t.closest("[data-xcut]"))){ev.preventDefault();xToggle(+b.getAttribute("data-xcut"));return;}
   if((b=t.closest("[data-xall]"))){ev.preventDefault();(X.plan?X.plan.changes:[]).forEach(function(c){if(c.xi!=null)XC[c.xi]=true;});
     xToggle(null);xRender();if($("v-paths").classList.contains("active")){drawGraph();renderInspector();}return;}
